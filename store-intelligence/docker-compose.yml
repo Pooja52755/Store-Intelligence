@@ -1,0 +1,105 @@
+version: "3.9"
+
+services:
+  api:
+    build: .
+    container_name: store-intelligence-api
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/storedb
+      REDIS_URL: redis://cache:6379
+      NEO4J_URI: bolt://graph:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: password
+      LOG_LEVEL: INFO
+    depends_on:
+      - db
+      - cache
+      - graph
+    volumes:
+      - ./events:/app/events
+      - ./pipeline/input_clips:/app/clips:ro
+      - ./events/store_layout.json:/app/store_layout.json:ro
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+  pipeline:
+    build: .
+    container_name: store-intelligence-pipeline
+    profiles: ["pipeline"]
+    environment:
+      LOG_LEVEL: INFO
+      YOLO_CONF: "0.35"
+      PIPELINE_FRAME_STRIDE: "5"
+    volumes:
+      - ./pipeline/input_clips:/app/clips:ro
+      - ./events:/app/events
+      - ./events/store_layout.json:/app/store_layout.json:ro
+    command: >
+      python pipeline/detect.py
+      --clips-dir /app/clips
+      --layout /app/store_layout.json
+      --output /app/events/events.jsonl
+      --store-id STORE_BLR_002
+
+  db:
+    image: postgres:15
+    container_name: store-intelligence-db
+    environment:
+      POSTGRES_DB: storedb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  cache:
+    image: redis:7-alpine
+    container_name: store-intelligence-cache
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  graph:
+    image: neo4j:5-community
+    container_name: store-intelligence-graph
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    environment:
+      NEO4J_AUTH: neo4j/password
+    volumes:
+      - neo4jdata:/data
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:7474"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  dashboard:
+    build: ./dashboard
+    container_name: store-intelligence-dashboard
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+    environment:
+      REACT_APP_API_URL: http://localhost:8000
+
+volumes:
+  pgdata:
+  neo4jdata:
+
+networks:
+  default:
+    name: store-intelligence-network

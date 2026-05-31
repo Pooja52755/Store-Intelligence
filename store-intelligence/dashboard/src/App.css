@@ -1,0 +1,235 @@
+.App {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.App-header {
+  background: rgba(0, 0, 0, 0.3);
+  color: white;
+  padding: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.App-header h1 {
+  margin: 0;
+  font-size: 28px;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+}
+
+.indicator {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+
+.indicator.connected {
+  background-color: #4ade80;
+}
+
+.indicator.disconnected {
+  background-color: #ef4444;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.dashboard {
+  padding: 30px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+section {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 30px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+}
+
+section h2 {
+  color: #333;
+  margin: 0 0 20px 0;
+  font-size: 22px;
+  border-bottom: 2px solid #667eea;
+  padding-bottom: 10px;
+}
+
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+}
+
+.metric-card {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 20px;
+  border-radius: 10px;
+  text-align: center;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  transition: transform 0.3s ease;
+}
+
+.metric-card:hover {
+  transform: translateY(-5px);
+}
+
+.metric-label {
+  font-size: 14px;
+  opacity: 0.9;
+  margin-bottom: 10px;
+}
+
+.metric-value {
+  font-size: 32px;
+  font-weight: bold;
+}
+
+.heatmap-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.zone-details {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 15px;
+}
+
+.zone-detail-card {
+  background: #f8f9fa;
+  padding: 15px;
+  border-radius: 8px;
+  border-left: 4px solid #667eea;
+}
+
+.zone-detail-card h3 {
+  margin: 0 0 10px 0;
+  color: #333;
+  font-size: 16px;
+}
+
+.zone-detail-card p {
+  margin: 5px 0;
+  font-size: 13px;
+  color: #666;
+}
+
+.confidence {
+  font-weight: 500;
+}
+
+.confidence.high {
+  color: #22c55e;
+}
+
+.confidence.medium {
+  color: #f59e0b;
+}
+
+.confidence.low {
+  color: #ef4444;
+}
+
+.anomalies-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 15px;
+}
+
+.anomaly-card {
+  padding: 15px;
+  border-radius: 8px;
+  border-left: 4px solid;
+  background: #f8f9fa;
+}
+
+.anomaly-card.severity-critical {
+  border-left-color: #ef4444;
+  background: #fee2e2;
+}
+
+.anomaly-card.severity-warn {
+  border-left-color: #f59e0b;
+  background: #fef3c7;
+}
+
+.anomaly-card.severity-info {
+  border-left-color: #3b82f6;
+  background: #dbeafe;
+}
+
+.anomaly-type {
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 5px;
+}
+
+.anomaly-severity {
+  font-size: 12px;
+  font-weight: 500;
+  margin-bottom: 8px;
+}
+
+.anomaly-message {
+  font-size: 14px;
+  color: #666;
+  line-height: 1.4;
+}
+
+.no-anomalies {
+  text-align: center;
+  padding: 20px;
+  color: #22c55e;
+  font-weight: 500;
+  font-size: 16px;
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  color: white;
+  font-size: 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+@media (max-width: 768px) {
+  .dashboard {
+    padding: 15px;
+  }
+
+  section {
+    padding: 15px;
+  }
+
+  .metrics-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .App-header {
+    flex-direction: column;
+    gap: 15px;
+  }
+}
