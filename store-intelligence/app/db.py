@@ -33,6 +33,7 @@ class Event(Base):
     sku_zone = Column(String(100), nullable=True)
     session_seq = Column(Integer, nullable=True)
     partial_occlusion = Column(Boolean, default=False)
+    run_id = Column(String(50), nullable=True, index=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     
     __table_args__ = (

@@ -71,8 +71,12 @@ events/
 *.mkv
 videos_input/
 pipeline/input_clips/
+pipeline/input_clips/uploads/
 
 # YOLO models (heavy)
 *.pt
 *.pth
 *.onnx
+
+# Run directories (evaluation isolation)
+events/*/

@@ -1,6 +1,7 @@
 """GET /stores/{store_id}/heatmap endpoint."""
 import logging
 from datetime import datetime, timezone, timedelta
+from typing import Optional
 
 from sqlalchemy import select, func, and_
 
@@ -19,7 +20,7 @@ logger = logging.getLogger(__name__)
 class HeatmapService:
     """Session-based zone heatmap with normalized scores (today's window)."""
 
-    async def get_heatmap(self, store_id: str) -> HeatmapResponse:
+    async def get_heatmap(self, store_id: str, run_id: Optional[str] = None) -> HeatmapResponse:
         session = await db_manager.get_session()
 
         try:
@@ -27,7 +28,8 @@ class HeatmapService:
             # Use last 48 hours instead of "today only" to handle batch processing
             start_window = now - timedelta(hours=48)
 
-            events = await fetch_store_events(session, store_id, since=start_window)
+            # If run_id provided, use it; otherwise use time-based filtering
+            events = await fetch_store_events(session, store_id, since=None if run_id else start_window, run_id=run_id)
             sessions = build_sessions_from_events(events)
             stats = heatmap_zone_stats(sessions)
 
@@ -37,16 +39,19 @@ class HeatmapService:
             # Last visit per zone (48-hour window) for alignment with DEAD_ZONE semantics
             last_visits: dict = {}
             for zone_id in stats:
+                where_clause = and_(
+                    DBEvent.store_id == store_id,
+                    DBEvent.event_type == "ZONE_ENTER",
+                    DBEvent.zone_id == zone_id,
+                    DBEvent.is_staff == False,
+                )
+                if run_id:
+                    where_clause = and_(where_clause, DBEvent.run_id == run_id)
+                else:
+                    where_clause = and_(where_clause, DBEvent.timestamp >= start_window)
+
                 row = await session.execute(
-                    select(func.max(DBEvent.timestamp)).where(
-                        and_(
-                            DBEvent.store_id == store_id,
-                            DBEvent.event_type == "ZONE_ENTER",
-                            DBEvent.zone_id == zone_id,
-                            DBEvent.is_staff == False,
-                            DBEvent.timestamp >= start_window,
-                        )
-                    )
+                    select(func.max(DBEvent.timestamp)).where(where_clause)
                 )
                 ts = row.scalar()
                 if ts:

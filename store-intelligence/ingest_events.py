@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import List, Dict, Any
 
 
-async def ingest_events(events_file: str, api_url: str = "http://localhost:8000", batch_size: int = 500):
+async def ingest_events(events_file: str, api_url: str = "http://localhost:8000", batch_size: int = 500, run_id: str = None):
     """Ingest events from JSONL file into the API."""
     
     events_path = Path(events_file)
@@ -42,7 +42,8 @@ async def ingest_events(events_file: str, api_url: str = "http://localhost:8000"
                         "sku_zone": raw_event.get("sku_zone"),
                         "session_seq": raw_event.get("session_seq"),
                         "partial_occlusion": raw_event.get("partial_occlusion", False)
-                    }
+                    },
+                    "run_id": run_id or raw_event.get("run_id")
                 }
                 events.append(formatted_event)
     
@@ -100,6 +101,11 @@ def main():
         help='Path to JSONL events file (default: ./events/events.jsonl)'
     )
     parser.add_argument(
+        '--run-id',
+        default=None,
+        help='Optional run_id to tag the ingested events with'
+    )
+    parser.add_argument(
         '--api-url',
         default='http://localhost:8000',
         help='API base URL (default: http://localhost:8000)'
@@ -112,8 +118,10 @@ def main():
     print("="*60)
     print(f"Events file: {args.events_file}")
     print(f"API URL: {args.api_url}")
+    if args.run_id:
+        print(f"Run ID: {args.run_id}")
     
-    success = asyncio.run(ingest_events(args.events_file, args.api_url))
+    success = asyncio.run(ingest_events(args.events_file, args.api_url, run_id=args.run_id))
     
     if success:
         print("\n" + "="*60)

@@ -31,6 +31,7 @@ class EventSchema(BaseModel):
     is_staff: bool = False
     confidence: float = Field(..., ge=0.0, le=1.0)
     metadata: EventMetadata = Field(default_factory=EventMetadata)
+    run_id: Optional[str] = None  # NEW: Track which run this event came from
 
     class Config:
         json_schema_extra = {
@@ -77,6 +78,7 @@ class MetricsResponse(BaseModel):
     current_queue_depth: int = 0
     abandonment_rate: float = 0.0
     data_freshness: str
+    run_id: Optional[str] = None
     provenance: DataProvenance = Field(default_factory=DataProvenance)
 
 
@@ -98,6 +100,7 @@ class FunnelResponse(BaseModel):
     unique_visitors: int = 0
     entry_sessions: int = 0
     count_basis: str = "sessions"
+    run_id: Optional[str] = None
     provenance: DataProvenance = Field(default_factory=DataProvenance)
 
 
@@ -114,6 +117,7 @@ class HeatmapZone(BaseModel):
 class HeatmapResponse(BaseModel):
     """Zone heatmap response."""
     zones: List[HeatmapZone]
+    run_id: Optional[str] = None
     provenance: DataProvenance = Field(default_factory=DataProvenance)
 
 
@@ -129,6 +133,8 @@ class Anomaly(BaseModel):
 class AnomaliesResponse(BaseModel):
     """Anomalies response."""
     anomalies: List[Anomaly]
+    run_id: Optional[str] = None
+    pipeline_status: str = "LIVE"  # LIVE, DEGRADED, NO_DATA
     provenance: DataProvenance = Field(default_factory=DataProvenance)
 
 

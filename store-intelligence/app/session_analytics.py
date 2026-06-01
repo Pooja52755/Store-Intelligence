@@ -243,11 +243,21 @@ async def fetch_store_events(
     session: AsyncSession,
     store_id: str,
     since: Optional[datetime] = None,
+    run_id: Optional[str] = None,
 ) -> List[dict]:
-    """Load customer events from DB as dicts for session builder."""
+    """Load customer events from DB as dicts for session builder.
+    
+    Args:
+        session: AsyncSession
+        store_id: Store identifier
+        since: Optional datetime filter (events after this time)
+        run_id: Optional run_id filter (if provided, only events from this run)
+    """
     q = select(DBEvent).where(
         and_(DBEvent.store_id == store_id, DBEvent.is_staff == False)
     )
+    if run_id:
+        q = q.where(DBEvent.run_id == run_id)
     if since:
         q = q.where(DBEvent.timestamp >= since)
     q = q.order_by(DBEvent.timestamp.asc())

@@ -1,6 +1,7 @@
 """GET /stores/{store_id}/funnel endpoint."""
 import logging
 from datetime import datetime, timezone, timedelta
+from typing import Optional
 
 from .models import FunnelResponse, FunnelStage
 from .db import db_manager
@@ -22,14 +23,15 @@ FUNNEL_COUNT_BASIS = "sessions"
 class FunnelService:
     """Session-based conversion funnel (monotonic stages)."""
 
-    async def get_funnel(self, store_id: str) -> FunnelResponse:
+    async def get_funnel(self, store_id: str, run_id: Optional[str] = None) -> FunnelResponse:
         session = await db_manager.get_session()
         try:
             now = datetime.now(timezone.utc)
             # Use last 48 hours instead of "today only" to handle batch processing
             start_window = now - timedelta(hours=48)
 
-            events = await fetch_store_events(session, store_id, since=start_window)
+            # If run_id provided, use it; otherwise use time-based filtering
+            events = await fetch_store_events(session, store_id, since=None if run_id else start_window, run_id=run_id)
             sessions = build_sessions_from_events(events)
 
             entry, zone, billing, purchase = compute_funnel_counts(sessions)

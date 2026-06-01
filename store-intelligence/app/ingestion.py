@@ -86,6 +86,9 @@ class EventIngestionService:
                     timestamp_str = event.timestamp.replace("Z", "+00:00")
                     timestamp = datetime.fromisoformat(timestamp_str)
                     
+                    # Extract run_id from metadata if available (set by ingest_run_events)
+                    run_id = getattr(event, 'run_id', None)
+                    
                     # Prepare insert with ON CONFLICT DO NOTHING
                     stmt = pg_insert(DBEvent).values(
                         event_id=event.event_id,
@@ -101,7 +104,8 @@ class EventIngestionService:
                         queue_depth=event.metadata.queue_depth,
                         sku_zone=event.metadata.sku_zone,
                         session_seq=event.metadata.session_seq,
-                        partial_occlusion=event.metadata.partial_occlusion
+                        partial_occlusion=event.metadata.partial_occlusion,
+                        run_id=run_id
                     ).on_conflict_do_nothing()
                     
                     result = await session.execute(stmt)

@@ -233,3 +233,285 @@ section h2 {
     gap: 15px;
   }
 }
+
+/* Run Selector and Dropdown */
+.header-controls {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.run-selector-container {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 8px 15px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.run-selector-container label {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.run-select {
+  background: #333;
+  color: white;
+  border: 1px solid #555;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 14px;
+  outline: none;
+  cursor: pointer;
+}
+
+.run-select option {
+  background: #222;
+  color: white;
+}
+
+.refresh-button {
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.refresh-button:hover {
+  background: #764ba2;
+}
+
+/* Upload Section styling */
+.upload-section {
+  background: rgba(255, 255, 255, 0.95);
+  border-left: 6px solid #764ba2;
+}
+
+.upload-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  align-items: flex-end;
+  background: #f8f9fa;
+  padding: 20px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-group label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #555;
+}
+
+.file-input {
+  background: white;
+  border: 1px solid #ced4da;
+  padding: 8px 12px;
+  border-radius: 6px;
+  outline: none;
+}
+
+.camera-select {
+  background: white;
+  border: 1px solid #ced4da;
+  padding: 8px 12px;
+  border-radius: 6px;
+  outline: none;
+  cursor: pointer;
+}
+
+.upload-submit-btn {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 10px 24px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);
+}
+
+.upload-submit-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+}
+
+.upload-submit-btn:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* Upload & Job Progress Status Box */
+.upload-status-box {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 20px;
+  border: 1px solid #e9ecef;
+  margin-top: 15px;
+}
+
+.upload-status-box h3 {
+  margin: 0 0 15px 0;
+  font-size: 16px;
+  color: #333;
+}
+
+.status-indicator {
+  margin-bottom: 15px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.status-badge {
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.state-processing, .state-uploading {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.state-completed {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.state-failed {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.spinner-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 15px;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid rgba(0,0,0,0.1);
+  border-radius: 50%;
+  border-top-color: #667eea;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.loading-text {
+  font-size: 13px;
+  color: #666;
+  font-weight: 500;
+}
+
+.error-message {
+  color: #dc3545;
+  background: #fff5f5;
+  border: 1px solid #ffc9c9;
+  padding: 12px;
+  border-radius: 6px;
+  margin-top: 10px;
+}
+
+.logs-container {
+  margin-top: 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.logs-output {
+  background: #1e1e1e;
+  color: #33ff33;
+  padding: 15px;
+  border-radius: 6px;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 12px;
+  max-height: 200px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  margin: 0;
+}
+
+/* Anomaly header and badges */
+.anomaly-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.severity-tag {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.tag-critical {
+  background: #ef4444;
+  color: white;
+}
+
+.tag-warn {
+  background: #f59e0b;
+  color: white;
+}
+
+.tag-info {
+  background: #3b82f6;
+  color: white;
+}
+
+.anomaly-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.detail-tag {
+  background: rgba(0, 0, 0, 0.05);
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  color: #555;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.loading-card {
+  text-align: center;
+  padding: 50px;
+  color: #666;
+  font-size: 16px;
+  font-weight: 500;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+}

@@ -28,6 +28,7 @@ class Event(BaseModel):
     is_staff: bool = False
     confidence: float
     metadata: EventMetadata = Field(default_factory=EventMetadata)
+    run_id: Optional[str] = None  # Tracks which pipeline run generated this event
 
     class Config:
         json_schema_extra = {
@@ -107,6 +108,7 @@ def build_event(
     sku_zone: Optional[str] = None,
     session_seq: Optional[int] = None,
     partial_occlusion: bool = False,
+    run_id: Optional[str] = None,
 ) -> Event:
     """
     Build event object.
@@ -154,7 +156,8 @@ def build_event(
         dwell_ms=dwell_ms,
         is_staff=is_staff,
         confidence=confidence,
-        metadata=metadata
+        metadata=metadata,
+        run_id=run_id
     )
     
     return event
