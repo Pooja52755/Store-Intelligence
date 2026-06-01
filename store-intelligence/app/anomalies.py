@@ -47,10 +47,10 @@ class AnomaliesService:
             logger.warning("Redis unavailable for anomalies: %s", e)
             self.redis_client = None
 
-    async def get_anomalies(self, store_id: str) -> AnomaliesResponse:
+    async def get_anomalies(self, store_id: str, run_id: Optional[str] = None) -> AnomaliesResponse:
         anomalies: List[Anomaly] = []
         try:
-            stale = await self._check_stale_feed(store_id)
+            stale = await self._check_stale_feed(store_id, run_id=run_id)
             if stale:
                 anomalies.append(stale)
 
@@ -58,37 +58,51 @@ class AnomaliesService:
                 self._check_queue_spike,
                 self._check_conversion_drop,
             ):
-                result = await check(store_id)
+                result = await check(store_id, run_id=run_id)
                 if result:
                     anomalies.append(result)
 
             # Dead zones are suppressed when feed is stale (all zones look "dead")
             if not stale:
-                dead = await self._check_dead_zones(store_id)
+                dead = await self._check_dead_zones(store_id, run_id=run_id)
                 anomalies.extend(dead)
         except Exception as e:
             logger.error("Error detecting anomalies: %s", e)
 
-        return AnomaliesResponse(anomalies=anomalies)
+        return AnomaliesResponse(anomalies=anomalies, run_id=run_id)
 
-    async def _check_queue_spike(self, store_id: str) -> Optional[Anomaly]:
+    async def _check_queue_spike(self, store_id: str, run_id: Optional[str] = None) -> Optional[Anomaly]:
         try:
             session = await db_manager.get_session()
             now = datetime.now(timezone.utc)
-            window_start = now - timedelta(minutes=QUEUE_SPIKE_DURATION_MINUTES + 2)
 
-            rows = await session.execute(
-                select(DBEvent.timestamp, DBEvent.queue_depth)
-                .where(
-                    and_(
-                        DBEvent.store_id == store_id,
-                        DBEvent.event_type == "BILLING_QUEUE_JOIN",
-                        DBEvent.timestamp >= window_start,
-                        DBEvent.is_staff == False,
+            if run_id:
+                rows = await session.execute(
+                    select(DBEvent.timestamp, DBEvent.queue_depth)
+                    .where(
+                        and_(
+                            DBEvent.store_id == store_id,
+                            DBEvent.event_type == "BILLING_QUEUE_JOIN",
+                            DBEvent.run_id == run_id,
+                            DBEvent.is_staff == False,
+                        )
                     )
+                    .order_by(DBEvent.timestamp.desc())
                 )
-                .order_by(DBEvent.timestamp.desc())
-            )
+            else:
+                window_start = now - timedelta(minutes=QUEUE_SPIKE_DURATION_MINUTES + 2)
+                rows = await session.execute(
+                    select(DBEvent.timestamp, DBEvent.queue_depth)
+                    .where(
+                        and_(
+                            DBEvent.store_id == store_id,
+                            DBEvent.event_type == "BILLING_QUEUE_JOIN",
+                            DBEvent.timestamp >= window_start,
+                            DBEvent.is_staff == False,
+                        )
+                    )
+                    .order_by(DBEvent.timestamp.desc())
+                )
             recent = rows.fetchall()
             await session.close()
 
@@ -96,7 +110,7 @@ class AnomaliesService:
                 return None
 
             latest_depth = int(recent[0][1] or 0)
-            events = await self._today_events(store_id)
+            events = await self._today_events(store_id, run_id=run_id)
             sessions = build_sessions_from_events(events)
             entry, _, _, purchase = compute_funnel_counts(sessions)
             rate = conversion_rate(entry, purchase)
@@ -128,7 +142,9 @@ class AnomaliesService:
             logger.warning("Queue spike check failed: %s", e)
             return None
 
-    async def _check_conversion_drop(self, store_id: str) -> Optional[Anomaly]:
+    async def _check_conversion_drop(self, store_id: str, run_id: Optional[str] = None) -> Optional[Anomaly]:
+        if run_id:
+            return None
         try:
             session = await db_manager.get_session()
             now = datetime.now(timezone.utc)
@@ -167,48 +183,32 @@ class AnomaliesService:
             logger.warning("Conversion drop check failed: %s", e)
             return None
 
-    async def _check_dead_zones(self, store_id: str) -> List[Anomaly]:
-        """
-        Per-zone: no ZONE_ENTER in the last DEAD_ZONE_WINDOW_MINUTES.
-
-        Only zones with at least one historical visit are eligible.
-        Zones never visited are skipped (unused layout != dead zone).
-        
-        If no events exist in DB at all, skip dead zone check (cold start).
-        """
+    async def _check_dead_zones(self, store_id: str, run_id: Optional[str] = None) -> List[Anomaly]:
         results: List[Anomaly] = []
         try:
             session = await db_manager.get_session()
             now = datetime.now(timezone.utc)
             window_start = now - timedelta(minutes=DEAD_ZONE_WINDOW_MINUTES)
 
-            # Check if any events exist at all - if not, skip dead zone check (cold start)
+            # Check if any events exist at all - cold start prevention
+            where_clause = and_(DBEvent.store_id == store_id, DBEvent.is_staff == False)
+            if run_id:
+                where_clause = and_(where_clause, DBEvent.run_id == run_id)
             total_events = await session.execute(
-                select(func.count(DBEvent.event_id)).where(
-                    and_(
-                        DBEvent.store_id == store_id,
-                        DBEvent.is_staff == False,
-                    )
-                )
+                select(func.count(DBEvent.event_id)).where(where_clause)
             )
             event_count = total_events.scalar() or 0
             if event_count == 0:
-                # No events in DB - cold start, don't flag dead zones
                 await session.close()
                 return results
 
             zone_ids = load_layout_zone_ids(store_id)
             if not zone_ids:
+                seen_clause = and_(DBEvent.store_id == store_id, DBEvent.zone_id.isnot(None), DBEvent.is_staff == False)
+                if run_id:
+                    seen_clause = and_(seen_clause, DBEvent.run_id == run_id)
                 seen = await session.execute(
-                    select(DBEvent.zone_id)
-                    .where(
-                        and_(
-                            DBEvent.store_id == store_id,
-                            DBEvent.zone_id.isnot(None),
-                            DBEvent.is_staff == False,
-                        )
-                    )
-                    .distinct()
+                    select(DBEvent.zone_id).where(seen_clause).distinct()
                 )
                 zone_ids = [r[0] for r in seen.fetchall() if r[0]]
 
@@ -216,52 +216,71 @@ class AnomaliesService:
                 if zone_id in ("access", "backlit"):
                     continue
 
+                last_visit_where = and_(
+                    DBEvent.store_id == store_id,
+                    DBEvent.event_type == "ZONE_ENTER",
+                    DBEvent.zone_id == zone_id,
+                    DBEvent.is_staff == False,
+                )
+                if run_id:
+                    last_visit_where = and_(last_visit_where, DBEvent.run_id == run_id)
+
                 last_visit_row = await session.execute(
-                    select(func.max(DBEvent.timestamp)).where(
-                        and_(
-                            DBEvent.store_id == store_id,
-                            DBEvent.event_type == "ZONE_ENTER",
-                            DBEvent.zone_id == zone_id,
-                            DBEvent.is_staff == False,
-                        )
-                    )
+                    select(func.max(DBEvent.timestamp)).where(last_visit_where)
                 )
                 last_visit_at = last_visit_row.scalar()
 
-                window_count_row = await session.execute(
-                    select(func.count(DBEvent.event_id)).where(
-                        and_(
-                            DBEvent.store_id == store_id,
-                            DBEvent.event_type == "ZONE_ENTER",
-                            DBEvent.zone_id == zone_id,
-                            DBEvent.is_staff == False,
-                            DBEvent.timestamp >= window_start,
+                if run_id:
+                    window_count_row = await session.execute(
+                        select(func.count(DBEvent.event_id)).where(
+                            and_(
+                                DBEvent.store_id == store_id,
+                                DBEvent.event_type == "ZONE_ENTER",
+                                DBEvent.zone_id == zone_id,
+                                DBEvent.is_staff == False,
+                                DBEvent.run_id == run_id,
+                            )
                         )
                     )
-                )
+                else:
+                    window_count_row = await session.execute(
+                        select(func.count(DBEvent.event_id)).where(
+                            and_(
+                                DBEvent.store_id == store_id,
+                                DBEvent.event_type == "ZONE_ENTER",
+                                DBEvent.zone_id == zone_id,
+                                DBEvent.is_staff == False,
+                                DBEvent.timestamp >= window_start,
+                            )
+                        )
+                    )
                 visits_in_window = window_count_row.scalar() or 0
 
-                # Debug log per zone
+                # Compute time since last visit or default
                 minutes_since = 0
                 if last_visit_at:
                     if last_visit_at.tzinfo is None:
                         last_visit_at = last_visit_at.replace(tzinfo=timezone.utc)
                     minutes_since = (now - last_visit_at).total_seconds() / 60.0
-                logger.info(
-                    "DEBUG dead_zone: zone_id=%s, last_visit=%s, minutes_since=%.1f, visits_in_window=%d",
-                    zone_id,
-                    last_visit_at.isoformat().replace("+00:00", "Z") if last_visit_at else "never",
-                    minutes_since,
-                    visits_in_window
-                )
 
-                detail = check_dead_zone(
-                    zone_id=zone_id,
-                    last_visit_at=last_visit_at,
-                    now=now,
-                    window_minutes=DEAD_ZONE_WINDOW_MINUTES,
-                    visits_in_window=visits_in_window,
-                )
+                detail = None
+                if run_id:
+                    if visits_in_window == 0:
+                        detail = {
+                            "zone_id": zone_id,
+                            "last_visit_timestamp": last_visit_at.isoformat().replace("+00:00", "Z") if last_visit_at else "never",
+                            "minutes_since_last_visit": 9999,
+                            "visits_in_window": 0
+                        }
+                else:
+                    detail = check_dead_zone(
+                        zone_id=zone_id,
+                        last_visit_at=last_visit_at,
+                        now=now,
+                        window_minutes=DEAD_ZONE_WINDOW_MINUTES,
+                        visits_in_window=visits_in_window,
+                    )
+
                 if detail:
                     results.append(
                         Anomaly(
@@ -270,9 +289,8 @@ class AnomaliesService:
                             detected_at=now.isoformat().replace("+00:00", "Z"),
                             details=detail,
                             suggested_action=(
-                                f"Zone '{zone_id}' had no visits in the last "
-                                f"{DEAD_ZONE_WINDOW_MINUTES} minutes "
-                                f"(last visit: {detail['last_visit_timestamp']})"
+                                f"Zone '{zone_id}' had no visits during the selected run" if run_id else
+                                f"Zone '{zone_id}' had no visits in the last {DEAD_ZONE_WINDOW_MINUTES} minutes"
                             ),
                         )
                     )
@@ -282,7 +300,9 @@ class AnomaliesService:
             logger.warning("Dead zone check failed: %s", e)
         return results[:5]
 
-    async def _check_stale_feed(self, store_id: str) -> Optional[Anomaly]:
+    async def _check_stale_feed(self, store_id: str, run_id: Optional[str] = None) -> Optional[Anomaly]:
+        if run_id:
+            return None
         try:
             session = await db_manager.get_session()
             last_event = await session.execute(
@@ -309,11 +329,11 @@ class AnomaliesService:
             logger.warning("Stale feed check failed: %s", e)
             return None
 
-    async def _today_events(self, store_id: str) -> list:
+    async def _today_events(self, store_id: str, run_id: Optional[str] = None) -> list:
         session = await db_manager.get_session()
         now = datetime.now(timezone.utc)
         start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        events = await fetch_store_events(session, store_id, since=start)
+        events = await fetch_store_events(session, store_id, since=None if run_id else start, run_id=run_id)
         await session.close()
         return events
 

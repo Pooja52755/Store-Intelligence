@@ -1426,7 +1426,7 @@ async def get_anomalies(store_id: str, run_id: Optional[str] = None):
 
         # Get anomalies from service
 
-        anomalies_response = await anomalies_service.get_anomalies(store_id)
+        anomalies_response = await anomalies_service.get_anomalies(store_id, run_id=run_id)
 
         
 

@@ -9,14 +9,13 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/storedb
       REDIS_URL: redis://cache:6379
-      NEO4J_URI: bolt://graph:7687
-      NEO4J_USER: neo4j
-      NEO4J_PASSWORD: password
+      NEO4J_ENABLED: "false"
       LOG_LEVEL: INFO
     depends_on:
-      - db
-      - cache
-      - graph
+      db:
+        condition: service_healthy
+      cache:
+        condition: service_healthy
     volumes:
       - ./events:/app/events
       - ./pipeline/input_clips:/app/clips:ro
@@ -72,35 +71,19 @@ services:
       timeout: 5s
       retries: 5
 
-  graph:
-    image: neo4j:5-community
-    container_name: store-intelligence-graph
-    ports:
-      - "7474:7474"
-      - "7687:7687"
-    environment:
-      NEO4J_AUTH: neo4j/password
-    volumes:
-      - neo4jdata:/data
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:7474"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   dashboard:
     build: ./dashboard
     container_name: store-intelligence-dashboard
     ports:
       - "3000:3000"
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     environment:
-      REACT_APP_API_URL: http://localhost:8000
+      REACT_APP_API_URL: http://127.0.0.1:8000
 
 volumes:
   pgdata:
-  neo4jdata:
 
 networks:
   default:

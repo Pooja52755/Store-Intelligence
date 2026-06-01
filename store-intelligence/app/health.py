@@ -115,6 +115,9 @@ class HealthService:
     
     async def _check_graph(self) -> str:
         """Check Neo4j graph database connectivity."""
+        enabled = os.getenv("NEO4J_ENABLED", "false").lower() == "true"
+        if not enabled:
+            return "disabled"
         try:
             is_connected = await graph_manager.is_connected()
             return "connected" if is_connected else "unavailable"

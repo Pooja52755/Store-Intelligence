@@ -16,6 +16,12 @@ class GraphManager:
     
     async def init(self):
         """Initialize Neo4j driver."""
+        enabled = os.getenv("NEO4J_ENABLED", "false").lower() == "true"
+        if not enabled:
+            logger.info("Neo4j integration is disabled (NEO4J_ENABLED=false). Skipping driver initialization.")
+            self.driver = None
+            return
+            
         uri = os.getenv("NEO4J_URI", "bolt://localhost:7687")
         user = os.getenv("NEO4J_USER", "neo4j")
         password = os.getenv("NEO4J_PASSWORD", "password")

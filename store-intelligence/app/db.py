@@ -89,6 +89,24 @@ class DatabaseManager:
         # Create tables
         async with self.engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
+            
+            # Auto-migrate: check if run_id column already exists
+            from sqlalchemy import text
+            check_query = text("""
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name = 'events' AND column_name = 'run_id'
+            """)
+            result = await conn.execute(check_query)
+            column_exists = result.scalar() is not None
+            
+            if not column_exists:
+                logger.info("Migrating schema: Adding run_id column to events table...")
+                await conn.execute(text("ALTER TABLE events ADD COLUMN run_id VARCHAR(50) NULL"))
+                await conn.execute(text("CREATE INDEX idx_events_run_id ON events(run_id)"))
+                logger.info("✅ Migrating schema: run_id column and index added successfully.")
+            else:
+                logger.info("✅ Database schema: run_id column exists.")
     
     async def get_session(self) -> AsyncSession:
         """Get async session."""
