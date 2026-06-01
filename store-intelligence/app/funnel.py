@@ -36,7 +36,7 @@ class FunnelService:
 
             entry, zone, billing, purchase = compute_funnel_counts(sessions)
             rate = conversion_rate(entry, purchase)
-            visitors = unique_visitors(sessions)
+            visitors = entry  # Rule 3: unique_visitors = entry_sessions = number of sessions
 
             # Debug log: funnel entry_sessions vs unique_visitors
             logger.info(

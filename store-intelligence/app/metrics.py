@@ -35,7 +35,7 @@ class MetricsService:
             sessions = build_sessions_from_events(events)
 
             entry_sessions, _, _, purchase_sessions = compute_funnel_counts(sessions)
-            visitors = unique_visitors(sessions)
+            visitors = entry_sessions  # Rule 3: unique_visitors = number of sessions, entry_sessions ≈ unique_visitors
             conv_rate = conversion_rate(entry_sessions, purchase_sessions)
             dwell_by_zone = avg_dwell_by_zone(sessions)
 

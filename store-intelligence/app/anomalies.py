@@ -212,8 +212,10 @@ class AnomaliesService:
                 )
                 zone_ids = [r[0] for r in seen.fetchall() if r[0]]
 
+            # Rule 8: Suppress minor or spurious dead zones unless there is a true retail dead zone
+            # Avoid triggering dead zones due to tracking loss or mirrors
             for zone_id in zone_ids:
-                if zone_id in ("access", "backlit"):
+                if zone_id in ("access", "backlit", "entry", "central_aisle"):
                     continue
 
                 last_visit_where = and_(

@@ -77,12 +77,14 @@ def build_sessions_from_events(events: List[dict]) -> List[VisitorSession]:
 
     Rules:
     - Staff excluded entirely
-    - ENTRY / REENTRY opens a session
-    - EXIT closes the active session
-    - Re-entry creates a new session (not double-counted as same session)
+    - Real-world behavioral continuity: A person maps to exactly ONE session per visit.
+    - If a visitor re-enters with less than 60 seconds gap, merge or extend the session.
+    - A zone visit is valid only if dwell time >= 2 seconds (2000ms). Pass-throughs/flickers are ignored.
+    - Validate checkout behavior: billing is true only if they spend >= 3 seconds (3000ms) near cash_counter/beauty_counter.
     """
     sessions: List[VisitorSession] = []
     active: Dict[str, VisitorSession] = {}
+    last_exit_times: Dict[str, datetime] = {}
 
     sorted_events = sorted(events, key=lambda e: _parse_ts(e["timestamp"]))
 
@@ -97,32 +99,51 @@ def build_sessions_from_events(events: List[dict]) -> List[VisitorSession]:
         zone_id = ev.get("zone_id")
 
         if etype in ("ENTRY", "REENTRY"):
-            if visitor_id in active:
-                prev = active.pop(visitor_id)
-                if prev.started_at and prev.ended_at is None:
-                    prev.ended_at = ts
-                sessions.append(prev)
+            # Check 60-second re-entry cooldown rule
+            last_exit = last_exit_times.get(visitor_id)
+            if last_exit and (ts - last_exit).total_seconds() < 60.0:
+                # Merge: revive the session or continue it instead of creating a new one
+                if visitor_id not in active and sessions:
+                    # Find last session for this visitor and pull it back to active
+                    for i in range(len(sessions) - 1, -1, -1):
+                        if sessions[i].visitor_id == visitor_id:
+                            active[visitor_id] = sessions.pop(i)
+                            active[visitor_id].ended_at = None
+                            break
 
-            sess = VisitorSession(
-                session_id=str(ev.get("event_id", uuid.uuid4())),
-                visitor_id=visitor_id,
-                store_id=store_id,
-                started_at=ts,
-                is_reentry=(etype == "REENTRY"),
-            )
-            active[visitor_id] = sess
+            if visitor_id in active:
+                sess = active[visitor_id]
+                # Just update start time if not set
+                if not sess.started_at:
+                    sess.started_at = ts
+            else:
+                sess = VisitorSession(
+                    session_id=str(ev.get("event_id", uuid.uuid4())),
+                    visitor_id=visitor_id,
+                    store_id=store_id,
+                    started_at=ts,
+                    is_reentry=(etype == "REENTRY" or last_exit is not None),
+                )
+                active[visitor_id] = sess
+
             if zone_id:
-                sess.zones_visited.add(zone_id)
+                # Zone entry is recorded
                 sess.zone_enter_at[zone_id] = ts
             continue
 
         sess = active.get(visitor_id)
         if sess is None:
-            continue
+            # Cold-start event without ENTRY: open an implicit session
+            sess = VisitorSession(
+                session_id=str(ev.get("event_id", uuid.uuid4())),
+                visitor_id=visitor_id,
+                store_id=store_id,
+                started_at=ts,
+            )
+            active[visitor_id] = sess
 
         if etype == "ZONE_ENTER" and zone_id:
-            sess.zones_visited.add(zone_id)
-            sess.zone_enter_at.setdefault(zone_id, ts)
+            sess.zone_enter_at[zone_id] = ts
 
         elif etype == "ZONE_EXIT" and zone_id:
             entered = sess.zone_enter_at.get(zone_id, ts)
@@ -130,13 +151,20 @@ def build_sessions_from_events(events: List[dict]) -> List[VisitorSession]:
             explicit = int(ev.get("dwell_ms") or 0)
             if explicit > 0:
                 dwell_ms = explicit
-            sess.zone_dwell_ms[zone_id] = sess.zone_dwell_ms.get(zone_id, 0) + dwell_ms
+            
+            # Zone visit validation: must dwell >= 2 seconds (2000ms)
+            if dwell_ms >= 2000:
+                sess.zones_visited.add(zone_id)
+                sess.zone_dwell_ms[zone_id] = sess.zone_dwell_ms.get(zone_id, 0) + dwell_ms
+            
             sess.zone_enter_at.pop(zone_id, None)
 
         elif etype == "ZONE_DWELL" and zone_id:
             dwell = int(ev.get("dwell_ms") or 0)
-            if dwell > sess.zone_dwell_ms.get(zone_id, 0):
-                sess.zone_dwell_ms[zone_id] = dwell
+            if dwell >= 2000:
+                sess.zones_visited.add(zone_id)
+                if dwell > sess.zone_dwell_ms.get(zone_id, 0):
+                    sess.zone_dwell_ms[zone_id] = dwell
 
         elif etype == "BILLING_QUEUE_JOIN":
             sess.billing_queue_joined = True
@@ -148,12 +176,32 @@ def build_sessions_from_events(events: List[dict]) -> List[VisitorSession]:
             sess.ended_at = ts
             for zid, entered in list(sess.zone_enter_at.items()):
                 dwell_ms = max(0, int((ts - entered).total_seconds() * 1000))
-                sess.zone_dwell_ms[zid] = sess.zone_dwell_ms.get(zid, 0) + dwell_ms
+                if dwell_ms >= 2000:
+                    sess.zones_visited.add(zid)
+                    sess.zone_dwell_ms[zid] = sess.zone_dwell_ms.get(zid, 0) + dwell_ms
             sess.zone_enter_at.clear()
+            
+            # Save exit time for 60s cooldown check
+            last_exit_times[visitor_id] = ts
             sessions.append(active.pop(visitor_id))
 
-    for sess in active.values():
+    # Clean active sessions left open
+    for visitor_id, sess in list(active.items()):
+        # Auto exit if inactivity or just flush to sessions
         sessions.append(sess)
+
+    # Post-process sessions to apply high-fidelity retail behavioral validation:
+    # Rule 5: Checkout state is TRUE only if shopper dwells at cash_counter or beauty_counter >= 3 seconds (3000ms)
+    for s in sessions:
+        valid_billing = False
+        for zone in BILLING_ZONES:
+            if s.zone_dwell_ms.get(zone, 0) >= 3000:
+                valid_billing = True
+                break
+        
+        # Override billing_queue_joined if they didn't meet the strict behavior requirements
+        if not valid_billing:
+            s.billing_queue_joined = False
 
     return sessions
 
@@ -161,8 +209,7 @@ def build_sessions_from_events(events: List[dict]) -> List[VisitorSession]:
 def compute_funnel_counts(sessions: List[VisitorSession]) -> Tuple[int, int, int, int]:
     """Return entry, zone_visit, billing_queue, purchase SESSION counts (monotonic).
 
-    Each ENTRY or REENTRY opens one session. This is NOT unique visitor count;
-    use ``unique_visitors(sessions)`` for distinct visitor_ids.
+    Strict funnel logic enforcement: Entry Sessions >= Zone Visits >= Billing Sessions >= Purchase Sessions.
     """
     entry = sum(1 for s in sessions if s.has_entry)
     zone = sum(1 for s in sessions if s.has_entry and s.has_zone_visit)
@@ -173,6 +220,7 @@ def compute_funnel_counts(sessions: List[VisitorSession]) -> Tuple[int, int, int
         if s.has_entry and s.has_zone_visit and s.has_billing_queue and s.is_purchase
     )
 
+    # Strictly ensure monotonic constraint before return
     zone = min(zone, entry)
     billing = min(billing, zone)
     purchase = min(purchase, billing)
