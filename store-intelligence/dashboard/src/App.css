@@ -713,17 +713,38 @@ section h2::before {
   background: rgba(59, 130, 246, 0.03);
 }
 
-.anomaly-type {
-  font-size: 14px;
+.anomaly-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  padding-bottom: 8px;
+}
+
+.anomaly-type-badge {
+  font-size: 13px;
   font-weight: 700;
-  color: white;
-  margin-bottom: 6px;
+  color: var(--color-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .anomaly-message {
   font-size: 13px;
+  color: white;
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+
+.anomaly-explanation {
+  font-size: 12px;
   color: var(--color-text-muted);
-  line-height: 1.5;
+  line-height: 1.4;
+  background: rgba(0, 0, 0, 0.20);
+  padding: 10px 14px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.03);
 }
 
 .no-anomalies {

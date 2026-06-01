@@ -371,22 +371,39 @@ function App() {
                 <div className="no-anomalies">✓ No store anomalies or queue spikes detected</div>
               ) : (
                 <div className="anomalies-list">
-                  {anomalies.map((anomaly, idx) => (
-                    <div key={idx} className={`anomaly-card severity-${anomaly.severity.toLowerCase()}`}>
-                      <div className="anomaly-header">
-                        <span className="anomaly-type">{anomaly.type}</span>
-                        <span className={`severity-tag tag-${anomaly.severity.toLowerCase()}`}>{anomaly.severity}</span>
-                      </div>
-                      <div className="anomaly-message">{anomaly.suggested_action}</div>
-                      {anomaly.details && (
-                        <div className="anomaly-details">
-                          {Object.entries(anomaly.details).map(([k, v]) => (
-                            <span key={k} className="detail-tag">{k}: {JSON.stringify(v)}</span>
-                          ))}
+                  {anomalies.map((anomaly, idx) => {
+                    const getAnomalyExplanation = (anom) => {
+                      const details = anom.details || {};
+                      switch (anom.type) {
+                        case 'BILLING_QUEUE_SPIKE':
+                          return `Shopper checkout queue surged to ${details.queue_depth} visitors (system limit: ${details.threshold} people) for over ${details.duration_minutes} minutes.`;
+                        case 'DEAD_ZONE':
+                          const lastVisitStr = details.last_visit_timestamp === 'never' ? 'never during this run' : new Date(details.last_visit_timestamp).toLocaleTimeString();
+                          return `Brand zone '${details.zone_id}' has recorded 0 shopper entries during this pipeline analysis (last visit: ${lastVisitStr}).`;
+                        case 'CONVERSION_DROP':
+                          return `Conversion rate dropped significantly to ${(details.today_rate * 100).toFixed(1)}% (7-day average: ${(details.avg_rate * 100).toFixed(1)}%, alert threshold: ${(details.threshold * 100).toFixed(1)}%).`;
+                        case 'STALE_FEED':
+                          return `Camera input stream has stalled. No new data packets received in the last ${Math.round(details.lag_seconds / 60)} minutes.`;
+                        default:
+                          return Object.entries(details).map(([k, v]) => `${k}: ${JSON.stringify(v)}`).join(', ');
+                      }
+                    };
+
+                    return (
+                      <div key={idx} className={`anomaly-card severity-${anomaly.severity.toLowerCase()}`}>
+                        <div className="anomaly-header">
+                          <span className="anomaly-type-badge">{anomaly.type.replace(/_/g, ' ')}</span>
+                          <span className={`severity-tag tag-${anomaly.severity.toLowerCase()}`}>{anomaly.severity}</span>
                         </div>
-                      )}
-                    </div>
-                  ))}
+                        <div className="anomaly-message">
+                          <strong>Suggested Action: </strong> {anomaly.suggested_action}
+                        </div>
+                        <div className="anomaly-explanation">
+                          <strong>Retail Diagnostic: </strong> {getAnomalyExplanation(anomaly)}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </section>
