@@ -5,8 +5,9 @@ from pathlib import Path
 
 import openpyxl
 
-XLSX = Path(r"C:\Users\Pooja\Downloads\Brigade Road - Store layoutc5f5d56.xlsx")
+XLSX = Path("layouts/store_layout.xlsx")
 OUT = Path(__file__).resolve().parent.parent / "events" / "layout_assets"
+
 
 
 def main():

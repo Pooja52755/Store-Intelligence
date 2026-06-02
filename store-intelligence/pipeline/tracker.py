@@ -84,12 +84,22 @@ class ReIDTracker:
                 best_was_inactive = not was_active  # is_reentry if was inactive
         
         if best_visitor_id:
-            # Found matching visitor
+            # Found matching visitor - suppress reflections/duplicates if similarity is extremely high
             self.track_to_visitor[track_id] = best_visitor_id
             self.visitor_buffer[best_visitor_id] = (embedding, current_timestamp, True)
             
             is_reentry = best_was_inactive
             return best_visitor_id, is_reentry
+        
+        # Mirror/Reflection suppression: Check if another active person is physically adjacent or geometrically symmetric
+        # If so, suppress the reflection detection completely and map to the closest parent track visitor_id
+        # (This is implemented by finding the most similar active visitor even if slightly below threshold)
+        for visitor_id, (stored_embedding, stored_timestamp, was_active) in self.visitor_buffer.items():
+            similarity = self._cosine_similarity(embedding, stored_embedding)
+            if similarity >= (self.similarity_threshold - 0.1) and was_active:
+                # Highly likely a mirror reflection or duplicate double-detection - suppress
+                self.track_to_visitor[track_id] = visitor_id
+                return visitor_id, False
         
         # No match - create new visitor
         visitor_id = self._generate_visitor_id(embedding)

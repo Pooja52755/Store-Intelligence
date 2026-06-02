@@ -9,7 +9,7 @@ with millimetre dimensions — not a zone CSV. This module:
   3. Writes store_layout.json for the detection pipeline
 
 Usage:
-  python prepare_layout.py "C:\\Users\\Pooja\\Downloads\\Brigade Road - Store layoutc5f5d56.xlsx"
+  python prepare_layout.py "layouts/store_layout.xlsx"
   python prepare_layout.py --output events/store_layout.json
 """
 from __future__ import annotations
@@ -251,7 +251,7 @@ def main() -> int:
     parser.add_argument(
         "xlsx_path",
         nargs="?",
-        default=r"C:\Users\Pooja\Downloads\Brigade Road - Store layoutc5f5d56.xlsx",
+        default="layouts/store_layout.xlsx",
         help="Path to Brigade Road layout xlsx",
     )
     parser.add_argument(

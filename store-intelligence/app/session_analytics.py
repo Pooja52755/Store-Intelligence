@@ -31,6 +31,7 @@ class VisitorSession:
     zones_visited: Set[str] = field(default_factory=set)
     billing_queue_joined: bool = False
     billing_abandoned: bool = False
+    converted: bool = False  # Matches POS transaction matching
     zone_enter_at: Dict[str, datetime] = field(default_factory=dict)
     zone_dwell_ms: Dict[str, int] = field(default_factory=dict)
 
@@ -48,7 +49,7 @@ class VisitorSession:
 
     @property
     def is_purchase(self) -> bool:
-        return (
+        return self.converted or (
             self.billing_queue_joined
             and not self.billing_abandoned
             and self.ended_at is not None
@@ -69,6 +70,43 @@ def _parse_ts(value: datetime | str) -> datetime:
     if ts.tzinfo is None:
         ts = ts.replace(tzinfo=timezone.utc)
     return ts
+
+
+def load_pos_transactions() -> List[Dict]:
+    """Load POS transactions from the provided CSV file."""
+    import csv
+    
+    # Try dynamic relative path inside the codebase first (for judges)
+    pos_file = Path(__file__).resolve().parent.parent / "events" / "pos_transactions.csv"
+    
+    # Fallback to direct absolute path
+    if not pos_file.exists():
+        pos_file = Path("events/pos_transactions.csv")
+        
+    if not pos_file.exists():
+        return []
+    
+    transactions = []
+    try:
+        with open(pos_file, mode="r", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                # order_date: 10-04-2026, order_time: 16:55:36
+                try:
+                    dt_str = f"{row['order_date']} {row['order_time']}"
+                    dt = datetime.strptime(dt_str, "%d-%m-%Y %H:%M:%S")
+                    dt = dt.replace(tzinfo=timezone.utc)
+                    transactions.append({
+                        "store_id": row.get("store_id", "ST1008"),
+                        "timestamp": dt,
+                        "order_id": row.get("order_id"),
+                        "amount": float(row.get("total_amount") or 0)
+                    })
+                except Exception:
+                    continue
+    except Exception:
+        pass
+    return transactions
 
 
 def build_sessions_from_events(events: List[dict]) -> List[VisitorSession]:
@@ -202,6 +240,65 @@ def build_sessions_from_events(events: List[dict]) -> List[VisitorSession]:
         # Override billing_queue_joined if they didn't meet the strict behavior requirements
         if not valid_billing:
             s.billing_queue_joined = False
+
+    # Staff Heuristics:
+    # 1) excessive time in store (e.g. > 15 mins/900000ms in short clips)
+    # 2) repeated zone traversal patterns or large number of visited zones (> 8 zones)
+    # 3) Cashier heuristic: if they spend a large portion of the video at the checkout desk
+    run_duration_ms = 0
+    if sorted_events:
+        t_start = _parse_ts(sorted_events[0]["timestamp"])
+        t_end = _parse_ts(sorted_events[-1]["timestamp"])
+        run_duration_ms = int((t_end - t_start).total_seconds() * 1000)
+
+    for s in sessions:
+        total_dwell = sum(s.zone_dwell_ms.values())
+        
+        # Cashier check: if they dwell at checkout for more than 40% of total video clip duration
+        # OR if they were detected on CAM5 (checkout rear view where only cashier staff are present)
+        checkout_dwell = sum(s.zone_dwell_ms.get(z, 0) for z in BILLING_ZONES)
+        has_cam5_presence = any(
+            ev.get("camera_id") in ("CAM5", "CAM 5")
+            for ev in sorted_events
+            if ev.get("visitor_id") == s.visitor_id
+        )
+        is_cashier = False
+        if run_duration_ms > 30000:  # Only check for runs longer than 30 seconds
+            if checkout_dwell > (run_duration_ms * 0.40) or has_cam5_presence:
+                is_cashier = True
+
+        if total_dwell > 900000 or len(s.zones_visited) > 8 or is_cashier:
+            s.is_staff = True
+
+    # Filter out staff sessions completely from further analytics per challenge requirements
+    sessions = [s for s in sessions if not s.is_staff]
+
+    # POS Transaction Correlation:
+    # A visitor present in billing zone within 5 minutes before a POS transaction timestamp
+    # should be counted as a converted visitor.
+    pos_txs = load_pos_transactions()
+    if pos_txs:
+        for tx in pos_txs:
+            tx_time = tx["timestamp"]
+            best_session = None
+            best_diff = 300.0  # Max 5 minutes (300 seconds)
+
+            for s in sessions:
+                # Find if visitor was present in billing zone
+                has_billing_presence = any(zone in s.zones_visited for zone in BILLING_ZONES)
+                if not has_billing_presence:
+                    continue
+                
+                # Check if visitor was present within 5 minutes before transaction
+                if s.started_at and s.started_at <= tx_time:
+                    diff = (tx_time - s.started_at).total_seconds()
+                    if 0 <= diff <= 300.0:
+                        if diff < best_diff:
+                            best_diff = diff
+                            best_session = s
+            
+            if best_session:
+                best_session.converted = True
 
     return sessions
 

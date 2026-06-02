@@ -10,8 +10,9 @@ from pathlib import Path
 def setup_videos():
     """Copy original CCTV videos to store-intelligence folder."""
     
-    source_dir = r"C:\Users\Pooja\Downloads\CCTV Footage-20260529T160731Z-3-00144614ea\CCTV Footage"
-    dest_dir = r"C:\Users\Pooja\Downloads\Purplle_EI_Challenge\store-intelligence\videos_input"
+    source_dir = "videos"
+    dest_dir = "pipeline/input_clips"
+
     
     source_path = Path(source_dir)
     dest_path = Path(dest_dir)

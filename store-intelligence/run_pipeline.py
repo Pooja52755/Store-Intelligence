@@ -10,8 +10,8 @@ This script:
 
 Usage:
     python run_pipeline.py \
-        --clips-dir "C:\\Users\\Pooja\\Downloads\\CCTV Footage-20260529T160731Z-3-00144614ea\\CCTV Footage" \
-        --layout-xlsx "C:\\Users\\Pooja\\Downloads\\Brigade Road - Store layoutc5f5d56.xlsx" \
+        --clips-dir "videos" \
+        --layout-xlsx "layouts/store_layout.xlsx" \
         --store-id STORE_BLR_002
 """
 import os
@@ -47,12 +47,12 @@ def prepare_layout(layout_source: str, output_json: str) -> bool:
     output_path = Path(output_json)
     source = Path(layout_source)
 
-    default_xlsx = Path(r"C:\Users\Pooja\Downloads\Brigade Road - Store layoutc5f5d56.xlsx")
+    default_xlsx = Path("layouts/store_layout.xlsx")
     if source.suffix.lower() == ".xlsx" and source.exists():
         xlsx_path = source
     elif default_xlsx.exists():
         xlsx_path = default_xlsx
-        print(f"\nUsing Brigade Road layout xlsx: {xlsx_path}")
+        print(f"\nUsing layout xlsx: {xlsx_path}")
     else:
         bundled = Path(__file__).parent / "events" / "store_layout.json"
         if bundled.exists():
@@ -159,7 +159,7 @@ def main():
     )
     parser.add_argument(
         '--layout-xlsx',
-        default=r'C:\Users\Pooja\Downloads\Brigade Road - Store layoutc5f5d56.xlsx',
+        default='layouts/store_layout.xlsx',
         help='Brigade Road store layout xlsx (embedded floor-plan images)'
     )
     parser.add_argument(

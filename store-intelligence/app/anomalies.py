@@ -271,7 +271,8 @@ class AnomaliesService:
                         detail = {
                             "zone_id": zone_id,
                             "last_visit_timestamp": last_visit_at.isoformat().replace("+00:00", "Z") if last_visit_at else "never",
-                            "minutes_since_last_visit": 9999,
+                            "business_impact": "No shopper engagement recorded",
+                            "suggested_action": "Review product placement or visibility",
                             "visits_in_window": 0
                         }
                 else:
@@ -287,11 +288,11 @@ class AnomaliesService:
                     results.append(
                         Anomaly(
                             type=self.DEAD_ZONE,
-                            severity="INFO",
+                            severity="WARN" if run_id else "INFO",
                             detected_at=now.isoformat().replace("+00:00", "Z"),
                             details=detail,
                             suggested_action=(
-                                f"Zone '{zone_id}' had no visits during the selected run" if run_id else
+                                "Review product placement or visibility" if run_id else
                                 f"Zone '{zone_id}' had no visits in the last {DEAD_ZONE_WINDOW_MINUTES} minutes"
                             ),
                         )

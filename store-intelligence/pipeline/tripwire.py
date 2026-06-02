@@ -101,10 +101,10 @@ class TripwireDetector:
             # Determine direction based on first vs last position
             if sides[0] < 0 < sides[2]:
                 # Crossed from negative to positive side
-                crossing_type = "ENTRY"
+                crossing_type = "EXIT"
             else:
                 # Crossed from positive to negative side
-                crossing_type = "EXIT"
+                crossing_type = "ENTRY"
             
             # Avoid repeated events on jitter - only emit if not recently crossed
             if not self.has_crossed[track_id]:

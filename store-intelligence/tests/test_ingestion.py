@@ -22,13 +22,45 @@ async def client():
 
 
 @pytest.fixture
-async def setup_test_db():
-    """Setup test database."""
-    await db_manager.init()
+def setup_ingestion_test_db():
+    """Setup test database and delete all rows to isolate tests using a fresh event loop and connection."""
+    import asyncio
+    
+    async def _clean():
+        from app.db import DatabaseManager
+        local_db = DatabaseManager()
+        await local_db.init()
+        session = await local_db.get_session()
+        try:
+            from sqlalchemy import text
+            await session.execute(text("DELETE FROM events"))
+            await session.execute(text("DELETE FROM sessions"))
+            await session.commit()
+        except Exception as e:
+            await session.rollback()
+        finally:
+            await session.close()
+            await local_db.close()
+            
+    # Run in isolated event loop before test
+    loop = asyncio.new_event_loop()
+    try:
+        loop.run_until_complete(_clean())
+    finally:
+        loop.close()
+        
     yield
-    # Cleanup - drop all tables
-    async with db_manager.engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+
+
+
+
+
+
+
+
+
+
+
 
 
 @pytest.fixture
@@ -41,8 +73,9 @@ async def mock_redis():
 
 def create_test_event(**kwargs) -> EventSchema:
     """Factory for creating test events."""
+    import uuid
     defaults = {
-        "event_id": "550e8400-e29b-41d4-a716-446655440000",
+        "event_id": str(uuid.uuid4()),
         "store_id": "STORE_BLR_002",
         "camera_id": "CAM_ENTRY_01",
         "visitor_id": "VIS_c8a2f1",
@@ -59,11 +92,12 @@ def create_test_event(**kwargs) -> EventSchema:
 
 
 @pytest.mark.asyncio
-async def test_ingest_happy_path(setup_test_db, mock_redis):
+async def test_ingest_happy_path(setup_ingestion_test_db, mock_redis):
     """Test happy path: 10 valid events all accepted."""
+    import uuid
     events = [
         create_test_event(
-            event_id=f"event-{i:04d}",
+            event_id=str(uuid.uuid5(uuid.NAMESPACE_DNS, f"event-happy-{i}")),
             visitor_id=f"VIS_{i:06d}"
         )
         for i in range(10)
@@ -83,12 +117,18 @@ async def test_ingest_happy_path(setup_test_db, mock_redis):
     await session.close()
 
 
+
+
+
+
 @pytest.mark.asyncio
-async def test_ingest_idempotency(setup_test_db, mock_redis):
+async def test_ingest_idempotency(setup_ingestion_test_db, mock_redis):
     """Test idempotency: posting same events twice returns same result."""
+    import uuid
+    static_ids = [str(uuid.uuid5(uuid.NAMESPACE_DNS, f"event-{i}")) for i in range(5)]
     events = [
         create_test_event(
-            event_id=f"event-{i:04d}",
+            event_id=static_ids[i],
             visitor_id=f"VIS_{i:06d}"
         )
         for i in range(5)
@@ -112,7 +152,7 @@ async def test_ingest_idempotency(setup_test_db, mock_redis):
 
 
 @pytest.mark.asyncio
-async def test_ingest_malformed_event(setup_test_db, mock_redis):
+async def test_ingest_malformed_event(setup_ingestion_test_db, mock_redis):
     """Test malformed event rejection with error details."""
     # Missing required field (confidence)
     events_data = [
@@ -137,11 +177,12 @@ async def test_ingest_malformed_event(setup_test_db, mock_redis):
 
 
 @pytest.mark.asyncio
-async def test_ingest_batch_max_size(setup_test_db, mock_redis):
+async def test_ingest_batch_max_size(setup_ingestion_test_db, mock_redis):
     """Test batch size limit (500 events max)."""
+    import uuid
     events = [
         create_test_event(
-            event_id=f"event-{i:05d}",
+            event_id=str(uuid.uuid4()),
             visitor_id=f"VIS_{i:06d}"
         )
         for i in range(500)
@@ -155,14 +196,15 @@ async def test_ingest_batch_max_size(setup_test_db, mock_redis):
 
 
 @pytest.mark.asyncio
-async def test_ingest_staff_events_stored_not_counted(setup_test_db, mock_redis):
+async def test_ingest_staff_events_stored_not_counted(setup_ingestion_test_db, mock_redis):
     """Test that is_staff=true events are stored but not counted in metrics."""
     # Create mix of staff and customer events
+    import uuid
     events = [
-        create_test_event(event_id=f"event-{i:04d}", is_staff=True)
+        create_test_event(event_id=str(uuid.uuid4()), is_staff=True)
         for i in range(5)
     ] + [
-        create_test_event(event_id=f"event-{i:04d}", is_staff=False)
+        create_test_event(event_id=str(uuid.uuid4()), is_staff=False)
         for i in range(5, 10)
     ]
     
@@ -187,18 +229,18 @@ async def test_ingest_staff_events_stored_not_counted(setup_test_db, mock_redis)
 
 
 @pytest.mark.asyncio
-async def test_ingest_invalid_confidence(setup_test_db, mock_redis):
+async def test_ingest_invalid_confidence(setup_ingestion_test_db, mock_redis):
     """Test rejection of event with invalid confidence value."""
-    events = [
-        create_test_event(confidence=1.5)  # Invalid, > 1.0
-    ]
-    
     with pytest.raises(Exception):
+        events = [
+            create_test_event(confidence=1.5)  # Invalid, > 1.0
+        ]
         request = IngestionRequest(events=events)
 
 
+
 @pytest.mark.asyncio
-async def test_ingest_zone_dwell_validation(setup_test_db, mock_redis):
+async def test_ingest_zone_dwell_validation(setup_ingestion_test_db, mock_redis):
     """Test that ZONE_DWELL events must have dwell_ms >= 30000."""
     events = [
         create_test_event(

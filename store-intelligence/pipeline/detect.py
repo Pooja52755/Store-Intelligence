@@ -37,6 +37,8 @@ except ImportError:
     YOLO = None
 
 
+# Ensure pipeline directory is in sys.path so relative imports work correctly
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from emit import Event, EventWriter, build_event
 
@@ -635,13 +637,8 @@ class DetectionPipeline:
                             # Fallback ENTRY: sustained presence in entry zone
 
                             if (
-
                                 not track_emitted_entry.get(track_id)
-
-                                and zone_id == "entry"
-
                                 and track_seen_count[track_id] >= MIN_FRAMES_FOR_ENTRY
-
                             ):
 
                                 events.insert(

@@ -210,15 +210,13 @@ async def logging_middleware(request, call_next):
 
             trace_id=trace_id,
 
-            store_id=request.path_params.get("store_id"),
-
             endpoint=request.url.path,
 
-            method=request.method,
+            store_id=request.path_params.get("store_id") or "STORE_BLR_002",
 
-            status_code=response.status_code,
+            latency_ms=latency_ms,
 
-            latency_ms=latency_ms
+            status_code=response.status_code
 
         )
 
@@ -242,15 +240,11 @@ async def logging_middleware(request, call_next):
 
             endpoint=request.url.path,
 
-            method=request.method,
+            store_id=request.path_params.get("store_id") or "STORE_BLR_002",
 
-            error=str(e),
-
-            latency_ms=latency_ms
+            latency_ms=latency_ms,
 
         )
-
-        
 
         raise
 

@@ -31,15 +31,12 @@ import httpx
 
 ROOT = Path(__file__).resolve().parent
 
-DEFAULT_CCTV = Path(
-    r"C:\Users\Pooja\Downloads\CCTV Footage-20260529T160731Z-3-00144614ea\CCTV Footage"
-)
-DEFAULT_LAYOUT = Path(r"C:\Users\Pooja\Downloads\Brigade Road - Store layoutc5f5d56.xlsx")
-DEFAULT_SALES = Path(
-    r"C:\Users\Pooja\Downloads\Brigade_Bangalore_10_April_26 (1)bc6219c.csv"
-)
+DEFAULT_CCTV = Path("videos")
+DEFAULT_LAYOUT = Path("layouts/store_layout.xlsx")
+DEFAULT_SALES = Path("events/pos_transactions.csv")
 API_URL = "http://localhost:8000"
 STORE_ID = "STORE_BLR_002"
+
 
 
 def sales_summary(csv_path: Path) -> dict:

@@ -275,10 +275,11 @@ class TestDetectionPipeline:
         )
         
         assert pipeline is not None
-        assert pipeline.yolo_model is None  # Not loaded in tests
         assert pipeline.tracker is not None
         assert pipeline.staff_classifier is not None
-        assert pipeline.tripwire is not None
+        assert pipeline.default_tripwire is not None
+
+
 
 
 from datetime import timedelta

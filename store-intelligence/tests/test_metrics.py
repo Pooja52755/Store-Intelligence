@@ -177,31 +177,25 @@ async def test_metrics_zone_dwell_calculation(setup_test_db):
     """Test average dwell by zone calculation."""
     store_id = "STORE_DWELL"
     
-    # Create zone dwell events
-    await create_test_event(
-        store_id=store_id,
-        event_type="ZONE_DWELL",
-        visitor_id="VIS_1",
-        zone_id="SKINCARE",
-        dwell_ms=60000,  # 60 seconds
-        is_staff=False
-    )
-    await create_test_event(
-        store_id=store_id,
-        event_type="ZONE_DWELL",
-        visitor_id="VIS_2",
-        zone_id="SKINCARE",
-        dwell_ms=120000,  # 120 seconds
-        is_staff=False
-    )
-    await create_test_event(
-        store_id=store_id,
-        event_type="ZONE_DWELL",
-        visitor_id="VIS_3",
-        zone_id="HAIRCARE",
-        dwell_ms=45000,  # 45 seconds
-        is_staff=False
-    )
+    # Create zone dwell events using valid exit/enter trajectories within current query window
+    session = await db_manager.get_session()
+    
+    # helper lists
+    for i, (vis, zone, dwell) in enumerate([("VIS_1", "SKINCARE", 60000), ("VIS_2", "SKINCARE", 120000), ("VIS_3", "HAIRCARE", 45000)]):
+        entry_t = datetime.now(timezone.utc) - timedelta(minutes=10)
+        exit_t = entry_t + timedelta(milliseconds=dwell)
+        
+        # ENTRY
+        session.add(DBEvent(store_id=store_id, camera_id="CAM_TEST", visitor_id=vis, event_type="ENTRY", timestamp=entry_t, is_staff=False, confidence=0.9))
+        # ZONE_ENTER
+        session.add(DBEvent(store_id=store_id, camera_id="CAM_TEST", visitor_id=vis, event_type="ZONE_ENTER", timestamp=entry_t + timedelta(seconds=1), zone_id=zone, is_staff=False, confidence=0.9))
+        # ZONE_EXIT
+        session.add(DBEvent(store_id=store_id, camera_id="CAM_TEST", visitor_id=vis, event_type="ZONE_EXIT", timestamp=exit_t, zone_id=zone, dwell_ms=dwell, is_staff=False, confidence=0.9))
+        # EXIT
+        session.add(DBEvent(store_id=store_id, camera_id="CAM_TEST", visitor_id=vis, event_type="EXIT", timestamp=exit_t + timedelta(seconds=1), is_staff=False, confidence=0.9))
+        
+    await session.commit()
+    await session.close()
     
     metrics = await metrics_service.get_metrics(store_id)
     
