@@ -293,16 +293,18 @@ class DetectionPipeline:
 
 
     def _get_zone(self, centroid: Tuple[float, float], camera_id: str = "CAM_UNKNOWN") -> Optional[str]:
-        # Camera-specific FOV overrides (resolves raw screen coordinate perspective shifts)
-        if "cam5" in camera_id.lower() or "cam 5" in camera_id.lower():
-            return "cash_counter"
-        if "cam1" in camera_id.lower() or "cam 1" in camera_id.lower():
-            return "entry"
-        if "cam3" in camera_id.lower() or "cam 3" in camera_id.lower():
-            # CAM3 points outside the door, so it has no inside store zones in its FOV
-            return None
-
-
+        # Look up camera config dynamically from self.cameras layout
+        cam_config = None
+        for cam in self.cameras:
+            if cam.get("id") == camera_id:
+                cam_config = cam
+                break
+                
+        if cam_config:
+            if "fixed_zone" in cam_config:
+                return cam_config["fixed_zone"]
+            if cam_config.get("is_outside"):
+                return None
 
         x, y = centroid
 
@@ -324,7 +326,27 @@ class DetectionPipeline:
 
         return None
 
+    def _project_coordinates(self, x: float, y: float, camera_id: str, frame_w: int = 1920, frame_h: int = 1080) -> Tuple[float, float]:
+        """Project raw video coordinate (x, y) to store floor plan space."""
+        cam_config = None
+        for cam in self.cameras:
+            if cam.get("id") == camera_id:
+                cam_config = cam
+                break
 
+        if cam_config and "fixed_zone" in cam_config:
+            zone_data = self.zone_config.get(cam_config["fixed_zone"])
+            if zone_data and "bounds" in zone_data:
+                x1, y1, x2, y2 = zone_data["bounds"]
+                # Map raw frame coordinates [0, frame_w] x [0, frame_h] into zone bounds [x1, x2] x [y1, y2]
+                x_proj = x1 + (x / float(frame_w)) * (x2 - x1)
+                y_proj = y1 + (y / float(frame_h)) * (y2 - y1)
+                return x_proj, y_proj
+
+        # Fallback to FOH central aisle bounds [149, 193, 1559, 821]
+        x_proj = 149.0 + (x / float(frame_w)) * (1559.0 - 149.0)
+        y_proj = 193.0 + (y / float(frame_h)) * (821.0 - 193.0)
+        return x_proj, y_proj
 
     def _scale_tripwire(
 
@@ -612,7 +634,9 @@ class DetectionPipeline:
 
                             crossing = tripwire.check_crossing(track_id, centroid)
 
-
+                            # Project centroid coordinates to store floor plan space
+                            x_proj, y_proj = self._project_coordinates(centroid[0], centroid[1], camera_id, frame_w, frame_h)
+                            proj_centroid = (x_proj, y_proj)
 
                             events = self._generate_events(
 
@@ -640,12 +664,14 @@ class DetectionPipeline:
 
                                 fps=video_fps,
 
+                                centroid=proj_centroid,
+
                             )
 
 
 
                             # Fallback ENTRY: sustained presence in entry zone (disabled for outside/entry cameras)
-                            is_outside_camera = any(c in camera_id.lower() for c in ["cam1", "cam 1", "cam3", "cam 3"])
+                            is_outside_camera = bool(cam_config.get("is_outside", False)) if cam_config else False
                             if (
                                 not is_outside_camera
                                 and not track_emitted_entry.get(track_id)
@@ -675,6 +701,10 @@ class DetectionPipeline:
                                         zone_id=None,
 
                                         run_id=self.run_id,
+
+                                        x=x_proj,
+
+                                        y=y_proj,
 
                                     ),
 
@@ -875,7 +905,7 @@ class DetectionPipeline:
                         continue
 
                     # 2. Outside passerby / street traffic filter:
-                    is_outside_camera = any(c in camera_id.lower() for c in ["cam1", "cam 1", "cam3", "cam 3"])
+                    is_outside_camera = bool(cam_config.get("is_outside", False)) if cam_config else False
                     if is_outside_camera and len(stats["zones"]) == 0:
                         logger.info("Discarding outside passerby/street traffic (0 zones visited): visitor=%s", vid)
                         continue
@@ -885,7 +915,8 @@ class DetectionPipeline:
                     
                     # Physical constraint: a visitor must visit at least one zone inside the store to be store staff!
                     # (Unless it's CAM5 Exit/billing rear camera which is a dedicated zone)
-                    has_zone_presence = len(stats["zones"]) > 0 or "cam5" in camera_id.lower() or "cam 5" in camera_id.lower()
+                    is_outside = bool(cam_config.get("is_outside", False)) if cam_config else False
+                    has_zone_presence = len(stats["zones"]) > 0 or (cam_config is not None and not is_outside)
                     
                     if has_zone_presence:
                         # Heuristic A: Torso uniform HSV color match ratio is high (very strong color cue)
@@ -900,7 +931,8 @@ class DetectionPipeline:
                         if clip_duration_seconds > 15.0:
                             present_at_start = (stats["first_ts"] - clip_start_time).total_seconds() < max(10.0, 0.25 * clip_duration_seconds)
                             present_at_end = (clip_end_time - stats["last_ts"]).total_seconds() < max(10.0, 0.25 * clip_duration_seconds)
-                            is_at_billing = stats["billing_detections"] > 0 or "cam5" in camera_id.lower() or "cam 5" in camera_id.lower()
+                            fixed_zone = cam_config.get("fixed_zone") if cam_config else None
+                            is_at_billing = stats["billing_detections"] > 0 or fixed_zone in ("cash_counter", "beauty_counter")
                             if present_at_start and present_at_end and ratio_active > 0.60 and ratio_hsv > 0.20 and is_at_billing:
                                 is_staff_heuristic = True
                                 
@@ -961,349 +993,193 @@ class DetectionPipeline:
 
         return event_count, processed_frames
 
-
-
     def _generate_events(
-
         self,
-
         visitor_id: str,
-
         track_id: int,
-
         crossing: Optional[str],
-
         is_reentry: bool,
-
         is_staff: bool,
-
         zone_id: Optional[str],
-
         conf: float,
-
         frame_timestamp: datetime,
-
         zone_entry_times: Dict,
-
         camera_id: str,
-
         frame_idx: int,
-
         fps: float,
-
+        centroid: Optional[Tuple[float, float]] = None,
     ) -> List[Event]:
-
         events = []
-
-
+        x_val = centroid[0] if centroid else None
+        y_val = centroid[1] if centroid else None
 
         if crossing == "ENTRY":
-
             event_type = "REENTRY" if is_reentry else "ENTRY"
-
             events.append(
-
                 build_event(
-
                     store_id=self.store_id,
-
                     camera_id=camera_id,
-
                     visitor_id=visitor_id,
-
                     event_type=event_type,
-
                     timestamp_dt=frame_timestamp,
-
                     confidence=conf,
-
                     is_staff=is_staff,
-
                     zone_id=None,
-
                     run_id=self.run_id,
-
+                    x=x_val,
+                    y=y_val,
                 )
-
             )
-
             if visitor_id not in self.visitor_states:
-
                 self.visitor_states[visitor_id] = {"zone_id": None, "in_store": True, "is_staff": is_staff}
-
             else:
-
                 self.visitor_states[visitor_id]["in_store"] = True
-
             self.tracker.mark_entry(visitor_id)
 
-
-
         elif crossing == "EXIT":
-
             st = self.visitor_states.get(visitor_id, {})
-
             if st.get("billing_joined"):
-
                 st["billing_purchased"] = True
-
             events.append(
-
                 build_event(
-
                     store_id=self.store_id,
-
                     camera_id=camera_id,
-
                     visitor_id=visitor_id,
-
                     event_type="EXIT",
-
                     timestamp_dt=frame_timestamp,
-
                     confidence=conf,
-
                     is_staff=is_staff,
-
                     zone_id=None,
-
                     run_id=self.run_id,
-
+                    x=x_val,
+                    y=y_val,
                 )
-
             )
-
             if visitor_id in self.visitor_states:
-
                 self.visitor_states[visitor_id]["in_store"] = False
-
             self.tracker.mark_exit(visitor_id, frame_timestamp)
 
-
-
         if zone_id:
-
             state = self.visitor_states.get(visitor_id, {})
-
             prev_zone = state.get("zone_id")
 
-
-
             if zone_id != prev_zone:
-
                 if prev_zone:
-
                     prev_enter = zone_entry_times.get(visitor_id, {}).get(prev_zone, frame_timestamp)
-
                     dwell_ms = max(0, int((frame_timestamp - prev_enter).total_seconds() * 1000))
-
                     events.append(
-
                         build_event(
-
                             store_id=self.store_id,
-
                             camera_id=camera_id,
-
                             visitor_id=visitor_id,
-
                             event_type="ZONE_EXIT",
-
                             timestamp_dt=frame_timestamp,
-
                             confidence=conf,
-
                             zone_id=prev_zone,
-
                             dwell_ms=dwell_ms,
-
                             is_staff=is_staff,
-
                             run_id=self.run_id,
-
+                            x=x_val,
+                            y=y_val,
                         )
-
                     )
-
                     if dwell_ms >= 1000:
-
                         events.append(
-
                             build_event(
-
                                 store_id=self.store_id,
-
                                 camera_id=camera_id,
-
                                 visitor_id=visitor_id,
-
                                 event_type="ZONE_DWELL",
-
                                 timestamp_dt=frame_timestamp,
-
                                 confidence=conf,
-
                                 zone_id=prev_zone,
-
                                 dwell_ms=dwell_ms,
-
                                 is_staff=is_staff,
-
                                 run_id=self.run_id,
-
+                                x=x_val,
+                                y=y_val,
                             )
-
                         )
-
                     if (
-
                         prev_zone in ("cash_counter", "beauty_counter")
-
                         and zone_id not in ("cash_counter", "beauty_counter")
-
                         and state.get("billing_joined")
-
                         and not state.get("billing_purchased")
-
                     ):
-
                         events.append(
-
                             build_event(
-
                                 store_id=self.store_id,
-
                                 camera_id=camera_id,
-
                                 visitor_id=visitor_id,
-
                                 event_type="BILLING_QUEUE_ABANDON",
-
                                 timestamp_dt=frame_timestamp,
-
                                 confidence=conf,
-
                                 zone_id=prev_zone,
-
                                 is_staff=is_staff,
-
                                 run_id=self.run_id,
-
+                                x=x_val,
+                                y=y_val,
                             )
-
                         )
-
                         state = {**state, "billing_joined": False}
 
-
-
                 events.append(
-
                     build_event(
-
                         store_id=self.store_id,
-
                         camera_id=camera_id,
-
                         visitor_id=visitor_id,
-
                         event_type="ZONE_ENTER",
-
                         timestamp_dt=frame_timestamp,
-
                         confidence=conf,
-
                         zone_id=zone_id,
-
                         is_staff=is_staff,
-
                         run_id=self.run_id,
-
+                        x=x_val,
+                        y=y_val,
                     )
-
                 )
 
-
-
                 self.visitor_states[visitor_id] = {
-
                     "zone_id": zone_id,
-
                     "zone_enter_time": frame_timestamp,
-
                     "in_store": True,
-
                     "billing_joined": state.get("billing_joined", False),
-
                 }
 
-
-
                 if visitor_id not in zone_entry_times:
-
                     zone_entry_times[visitor_id] = {}
-
                 zone_entry_times[visitor_id][zone_id] = frame_timestamp
 
-
-
                 # Billing queue when entering counter zones
-
                 if (
-
                     zone_id in ("cash_counter", "beauty_counter")
-
                     and not state.get("billing_joined")
-
                     and not is_staff
-
                 ):
-
                     queue_depth = sum(
-
                         1
-
                         for vid, st in self.visitor_states.items()
-
                         if st.get("zone_id") in ("cash_counter", "beauty_counter")
-
                     )
-
                     events.append(
-
                         build_event(
-
                             store_id=self.store_id,
-
                             camera_id=camera_id,
-
                             visitor_id=visitor_id,
-
                             event_type="BILLING_QUEUE_JOIN",
-
                             timestamp_dt=frame_timestamp,
-
                             confidence=conf,
-
                             zone_id=zone_id,
-
                             is_staff=is_staff,
-
                             queue_depth=queue_depth,
-
                             run_id=self.run_id,
-
+                            x=x_val,
+                            y=y_val,
                         )
-
                     )
-
                     self.visitor_states[visitor_id]["billing_joined"] = True
 
-
-
         return events
-
-
 
     def process_all_videos(self) -> int:
 
@@ -1476,4 +1352,3 @@ def main():
 if __name__ == "__main__":
 
     main()
-

@@ -105,7 +105,9 @@ class EventIngestionService:
                         sku_zone=event.metadata.sku_zone,
                         session_seq=event.metadata.session_seq,
                         partial_occlusion=event.metadata.partial_occlusion,
-                        run_id=run_id
+                        run_id=run_id,
+                        x=event.metadata.x,
+                        y=event.metadata.y
                     ).on_conflict_do_nothing()
                     
                     result = await session.execute(stmt)

@@ -34,7 +34,7 @@ RUN python -c "import cv2; print(f'OpenCV {cv2.__version__} loaded successfully'
 COPY app/ /app/app/
 COPY pipeline/ /app/pipeline/
 COPY events/store_layout.json /app/store_layout.json
-COPY yolov8n.pt /app/yolov8n.pt
+COPY pipeline/yolov8n.pt /app/yolov8n.pt
 
 # Create events directory
 RUN mkdir -p /app/events /app/uploads

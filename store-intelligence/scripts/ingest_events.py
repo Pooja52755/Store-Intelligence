@@ -42,7 +42,9 @@ async def ingest_events(events_file: str, api_url: str = "http://localhost:8000"
                         "queue_depth": meta.get("queue_depth"),
                         "sku_zone": meta.get("sku_zone"),
                         "session_seq": meta.get("session_seq"),
-                        "partial_occlusion": meta.get("partial_occlusion", False)
+                        "partial_occlusion": meta.get("partial_occlusion", False),
+                        "x": meta.get("x"),
+                        "y": meta.get("y")
                     },
                     "run_id": run_id or raw_event.get("run_id")
                 }

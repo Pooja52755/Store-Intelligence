@@ -10,6 +10,8 @@ class EventMetadata(BaseModel):
     sku_zone: Optional[str] = None
     session_seq: Optional[int] = None
     partial_occlusion: Optional[bool] = False
+    x: Optional[float] = None
+    y: Optional[float] = None
 
 
 class DataProvenance(BaseModel):
@@ -131,6 +133,7 @@ class HeatmapResponse(BaseModel):
     """Zone heatmap response."""
     zones: List[HeatmapZone]
     run_id: Optional[str] = None
+    detections: Optional[List[Dict[str, Any]]] = None
     provenance: DataProvenance = Field(default_factory=DataProvenance)
 
 

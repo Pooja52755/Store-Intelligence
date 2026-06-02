@@ -106,6 +106,34 @@ function Heatmap({ data }) {
               );
             })}
 
+            {/* Highlighted YOLO Detection Points */}
+            {data.detections && data.detections.map((det, idx) => {
+              const leftPct = (det.x / 1920) * 100;
+              const topPct = (det.y / 1080) * 100;
+              
+              if (leftPct < 0 || leftPct > 100 || topPct < 0 || topPct > 100) return null;
+
+              return (
+                <div
+                  key={`det-${idx}`}
+                  className="yolo-detection-node"
+                  style={{
+                    left: `${leftPct}%`,
+                    top: `${topPct}%`,
+                    position: 'absolute',
+                    width: '7px',
+                    height: '7px',
+                    borderRadius: '50%',
+                    backgroundColor: det.is_staff ? '#ff4b91' : '#00ffff',
+                    boxShadow: det.is_staff ? '0 0 8px #ff4b91' : '0 0 8px #00ffff',
+                    transform: 'translate(-50%, -50%)',
+                    zIndex: 5,
+                    pointerEvents: 'none'
+                  }}
+                />
+              );
+            })}
+
             {/* Premium Floating Tooltip */}
             {hoveredZone && (
               <div 
@@ -149,6 +177,8 @@ function Heatmap({ data }) {
             <span className="legend-item"><span className="legend-dot color-warm"></span> Medium Dwell (&ge;45%)</span>
             <span className="legend-item"><span className="legend-dot color-cool"></span> Light Traffic (&gt;0%)</span>
             <span className="legend-item"><span className="legend-dot color-cold"></span> No Visits</span>
+            <span className="legend-item"><span className="legend-dot" style={{ backgroundColor: '#00ffff', boxShadow: '0 0 6px #00ffff', display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', marginRight: '6px' }}></span> Shopper detection</span>
+            <span className="legend-item"><span className="legend-dot" style={{ backgroundColor: '#ff4b91', boxShadow: '0 0 6px #ff4b91', display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', marginRight: '6px' }}></span> Staff detection</span>
           </div>
         </div>
       ) : (

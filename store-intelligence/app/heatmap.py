@@ -80,7 +80,30 @@ class HeatmapService:
                 )
 
             zones.sort(key=lambda z: z.score, reverse=True)
-            return HeatmapResponse(zones=zones)
+
+            # Fetch all event coordinates for this run
+            detections = []
+            where_clause_det = and_(
+                DBEvent.store_id == store_id,
+                DBEvent.x.isnot(None),
+                DBEvent.y.isnot(None),
+            )
+            if run_id:
+                where_clause_det = and_(where_clause_det, DBEvent.run_id == run_id)
+            else:
+                where_clause_det = and_(where_clause_det, DBEvent.timestamp >= start_window)
+
+            rows = await session.execute(
+                select(DBEvent.x, DBEvent.y, DBEvent.is_staff).where(where_clause_det)
+            )
+            for r in rows:
+                detections.append({
+                    "x": r.x,
+                    "y": r.y,
+                    "is_staff": r.is_staff
+                })
+
+            return HeatmapResponse(zones=zones, run_id=run_id, detections=detections)
 
         except Exception as e:
             logger.error("Error calculating heatmap: %s", e)

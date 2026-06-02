@@ -13,6 +13,8 @@ class EventMetadata(BaseModel):
     sku_zone: Optional[str] = None
     session_seq: Optional[int] = None
     partial_occlusion: Optional[bool] = False
+    x: Optional[float] = None
+    y: Optional[float] = None
 
 
 class Event(BaseModel):
@@ -92,8 +94,6 @@ class EventWriter:
         except FileNotFoundError:
             pass
         return events
-
-
 def build_event(
     store_id: str,
     camera_id: str,
@@ -109,40 +109,22 @@ def build_event(
     session_seq: Optional[int] = None,
     partial_occlusion: bool = False,
     run_id: Optional[str] = None,
+    x: Optional[float] = None,
+    y: Optional[float] = None,
 ) -> Event:
-    """
-    Build event object.
-    
-    Args:
-        store_id: Store identifier
-        camera_id: Camera identifier
-        visitor_id: Visitor identifier
-        event_type: One of required event types
-        timestamp_dt: Python datetime object (will be converted to ISO-8601 UTC)
-        confidence: Detection confidence (never suppressed, always included)
-        zone_id: Optional zone identifier
-        is_staff: Whether person is staff
-        dwell_ms: Dwell time in milliseconds
-        queue_depth: Queue depth for BILLING_QUEUE events
-        sku_zone: SKU zone for metadata
-        session_seq: Session sequence number
-        partial_occlusion: Whether detection is partially occluded
-    
-    Returns:
-        Validated Event object
-    """
-    # Ensure UTC timezone
+    """Build event object with coordinates."""
     if timestamp_dt.tzinfo is None:
         timestamp_dt = timestamp_dt.replace(tzinfo=timezone.utc)
     
-    # ISO-8601 UTC format
     iso_timestamp = timestamp_dt.isoformat(timespec='seconds').replace('+00:00', 'Z')
     
     metadata = EventMetadata(
         queue_depth=queue_depth,
         sku_zone=sku_zone,
         session_seq=session_seq,
-        partial_occlusion=partial_occlusion
+        partial_occlusion=partial_occlusion,
+        x=x,
+        y=y
     )
     
     event = Event(
@@ -161,3 +143,4 @@ def build_event(
     )
     
     return event
+

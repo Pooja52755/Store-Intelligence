@@ -251,6 +251,7 @@ def build_sessions_from_events(events: List[dict]) -> List[VisitorSession]:
         t_end = _parse_ts(sorted_events[-1]["timestamp"])
         run_duration_ms = int((t_end - t_start).total_seconds() * 1000)
 
+    pos_txs = load_pos_transactions()
     for s in sessions:
         total_dwell = sum(s.zone_dwell_ms.values())
         
@@ -268,7 +269,15 @@ def build_sessions_from_events(events: List[dict]) -> List[VisitorSession]:
                 if checkout_dwell > (session_duration_ms * 0.60):
                     is_cashier = True
 
-        if total_dwell > 900000 or len(s.zones_visited) > 8 or is_cashier:
+        # Check POS transaction overlap: staff cashier session overlaps with multiple customer transactions
+        overlapping_tx_count = 0
+        if pos_txs and s.started_at and s.ended_at:
+            for tx in pos_txs:
+                tx_time = tx["timestamp"]
+                if s.started_at <= tx_time <= s.ended_at:
+                    overlapping_tx_count += 1
+
+        if total_dwell > 900000 or len(s.zones_visited) > 8 or is_cashier or overlapping_tx_count >= 2:
             s.is_staff = True
 
     # Filter out staff sessions completely from further analytics per challenge requirements
