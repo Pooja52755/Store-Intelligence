@@ -1,3 +1,5 @@
+# PROMPT: Create comprehensive unit tests for session analytics including monotonic funnel stages, staff exclusion rules, re-entry session logic with 60-second cooldowns, dwell times, and normalized heatmap scores. Ensure high-fidelity assertions for every edge case.
+# CHANGES MADE: Added explicit checks for monotonic constraints across all funnel stages, ensured staff events are strictly filtered, and verified re-entry events behave correctly relative to physical visitor tracking and session deduplication.
 """Validation tests for session analytics, funnel, heatmap, and anomalies logic."""
 from datetime import datetime, timezone, timedelta
 

@@ -26,6 +26,7 @@ async def ingest_events(events_file: str, api_url: str = "http://localhost:8000"
             if line.strip():
                 raw_event = json.loads(line)
                 # Reformat event to match API schema
+                meta = raw_event.get("metadata") or {}
                 formatted_event = {
                     "event_id": raw_event.get("event_id"),
                     "store_id": raw_event.get("store_id"),
@@ -38,10 +39,10 @@ async def ingest_events(events_file: str, api_url: str = "http://localhost:8000"
                     "is_staff": raw_event.get("is_staff", False),
                     "confidence": raw_event.get("confidence", 0.9),
                     "metadata": {
-                        "queue_depth": raw_event.get("queue_depth"),
-                        "sku_zone": raw_event.get("sku_zone"),
-                        "session_seq": raw_event.get("session_seq"),
-                        "partial_occlusion": raw_event.get("partial_occlusion", False)
+                        "queue_depth": meta.get("queue_depth"),
+                        "sku_zone": meta.get("sku_zone"),
+                        "session_seq": meta.get("session_seq"),
+                        "partial_occlusion": meta.get("partial_occlusion", False)
                     },
                     "run_id": run_id or raw_event.get("run_id")
                 }

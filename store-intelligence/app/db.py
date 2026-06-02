@@ -1,15 +1,33 @@
 """SQLAlchemy async database setup."""
+
 import os
+
+import logging
+
 from sqlalchemy.ext.asyncio import (
+
     create_async_engine,
+
     AsyncSession,
+
     async_sessionmaker
+
 )
+
 from sqlalchemy import Column, String, DateTime, Float, Integer, Boolean, Text, func
+
 from sqlalchemy.orm import declarative_base
+
 from sqlalchemy.dialects.postgresql import UUID
+
 import uuid
+
 from datetime import datetime, timezone
+
+
+
+logger = logging.getLogger(__name__)
+
 
 
 Base = declarative_base()

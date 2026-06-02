@@ -39,6 +39,21 @@ class MetricsService:
             conv_rate = conversion_rate(entry_sessions, purchase_sessions)
             dwell_by_zone = avg_dwell_by_zone(sessions)
 
+            # Calculate unique staff count
+            staff_where = and_(
+                DBEvent.store_id == store_id,
+                DBEvent.is_staff == True,
+            )
+            if run_id:
+                staff_where = and_(staff_where, DBEvent.run_id == run_id)
+            else:
+                staff_where = and_(staff_where, DBEvent.timestamp >= start_window)
+            
+            staff_result = await session.execute(
+                select(func.count(func.distinct(DBEvent.visitor_id))).where(staff_where)
+            )
+            unique_staff = int(staff_result.scalar() or 0)
+
             # Build queue depth query with run_id filter if provided
             queue_where = and_(
                 DBEvent.store_id == store_id,
@@ -109,11 +124,13 @@ class MetricsService:
                 store_id=store_id,
                 window="today",
                 unique_visitors=visitors,
+                unique_staff=unique_staff,
                 conversion_rate=conv_rate,
                 avg_dwell_by_zone=dwell_by_zone,
                 current_queue_depth=current_queue_depth,
                 abandonment_rate=min(max(abandonment_rate, 0.0), 1.0),
                 data_freshness=data_freshness,
+                run_id=run_id,
             )
 
         except Exception as e:
@@ -122,6 +139,7 @@ class MetricsService:
                 store_id=store_id,
                 window="today",
                 unique_visitors=0,
+                unique_staff=0,
                 conversion_rate=0.0,
                 avg_dwell_by_zone={},
                 current_queue_depth=0,
@@ -129,6 +147,7 @@ class MetricsService:
                 data_freshness=datetime.now(timezone.utc)
                 .isoformat()
                 .replace("+00:00", "Z"),
+                run_id=run_id,
             )
         finally:
             await session.close()

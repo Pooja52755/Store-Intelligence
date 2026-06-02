@@ -192,7 +192,7 @@ class DetectionPipeline:
 
         self.yolo_model = self._load_yolo()
 
-        self.tracker = ReIDTracker(similarity_threshold=0.75)
+        self.tracker = ReIDTracker(similarity_threshold=0.85)
 
         self.staff_classifier = StaffClassifier(threshold=0.35)
 
@@ -292,7 +292,17 @@ class DetectionPipeline:
 
 
 
-    def _get_zone(self, centroid: Tuple[float, float]) -> Optional[str]:
+    def _get_zone(self, centroid: Tuple[float, float], camera_id: str = "CAM_UNKNOWN") -> Optional[str]:
+        # Camera-specific FOV overrides (resolves raw screen coordinate perspective shifts)
+        if "cam5" in camera_id.lower() or "cam 5" in camera_id.lower():
+            return "cash_counter"
+        if "cam1" in camera_id.lower() or "cam 1" in camera_id.lower():
+            return "entry"
+        if "cam3" in camera_id.lower() or "cam 3" in camera_id.lower():
+            # CAM3 points outside the door, so it has no inside store zones in its FOV
+            return None
+
+
 
         x, y = centroid
 
@@ -462,7 +472,9 @@ class DetectionPipeline:
 
         track_to_visitor: Dict[int, str] = {}
 
+        buffered_events = []
         detection_log_interval = 500
+        visitor_centroids = {} # Track centroids for motion validation
 
 
 
@@ -581,14 +593,12 @@ class DetectionPipeline:
                             )
 
                             track_to_visitor[track_id] = visitor_id
-
                             track_last_seen[track_id] = frame_idx
-
                             track_seen_count[track_id] = (
-
                                 track_seen_count.get(track_id, 0) + 1
-
                             )
+                            # Track centroids for motion validation
+                            visitor_centroids.setdefault(visitor_id, []).append(centroid)
 
 
 
@@ -598,7 +608,7 @@ class DetectionPipeline:
 
                             )
 
-                            zone_id = self._get_zone(centroid)
+                            zone_id = self._get_zone(centroid, camera_id)
 
                             crossing = tripwire.check_crossing(track_id, centroid)
 
@@ -634,10 +644,11 @@ class DetectionPipeline:
 
 
 
-                            # Fallback ENTRY: sustained presence in entry zone
-
+                            # Fallback ENTRY: sustained presence in entry zone (disabled for outside/entry cameras)
+                            is_outside_camera = any(c in camera_id.lower() for c in ["cam1", "cam 1", "cam3", "cam 3"])
                             if (
-                                not track_emitted_entry.get(track_id)
+                                not is_outside_camera
+                                and not track_emitted_entry.get(track_id)
                                 and track_seen_count[track_id] >= MIN_FRAMES_FOR_ENTRY
                             ):
 
@@ -661,7 +672,7 @@ class DetectionPipeline:
 
                                         is_staff=is_staff,
 
-                                        zone_id="entry",
+                                        zone_id=None,
 
                                         run_id=self.run_id,
 
@@ -679,6 +690,8 @@ class DetectionPipeline:
 
                                         "in_store": True,
 
+                                        "is_staff": is_staff,
+
                                     }
 
                                 self.tracker.mark_entry(visitor_id)
@@ -693,9 +706,7 @@ class DetectionPipeline:
 
                             for event in events:
 
-                                if self.writer.write_event(event):
-
-                                    event_count += 1
+                                buffered_events.append(event)
 
 
 
@@ -769,21 +780,147 @@ class DetectionPipeline:
 
                             confidence=0.5,
 
-                            is_staff=False,
+                            is_staff=self.visitor_states.get(visitor_id, {}).get("is_staff", False),
 
                             run_id=self.run_id,
 
                         )
 
-                        if self.writer.write_event(event):
-
-                            event_count += 1
+                        buffered_events.append(event)
 
                         self.visitor_states[visitor_id]["in_store"] = False
 
                         self.tracker.mark_exit(visitor_id, exit_time)
 
                     del track_last_seen[track_id]
+
+            # POST-PROCESS EVENTS: Apply deterministic staff classification heuristics
+            # as required by Task 1 & 2 in challenge guidelines (e.g. presence duration, start/end)
+            if buffered_events:
+                visitor_stats = {}
+                clip_end_time = clip_start_time + timedelta(seconds=frame_idx / video_fps)
+                clip_duration_seconds = frame_idx / video_fps
+
+                for ev in buffered_events:
+
+                    vid = ev.visitor_id
+
+                    ts = datetime.fromisoformat(ev.timestamp.replace("Z", "+00:00"))
+
+                    
+
+                    if vid not in visitor_stats:
+
+                        visitor_stats[vid] = {
+
+                            "first_ts": ts,
+
+                            "last_ts": ts,
+
+                            "total_detections": 0,
+
+                            "billing_detections": 0,
+
+                            "hsv_matches": 0,
+
+                            "zones": set(),
+
+                        }
+
+                    
+
+                    stats = visitor_stats[vid]
+
+                    stats["first_ts"] = min(stats["first_ts"], ts)
+
+                    stats["last_ts"] = max(stats["last_ts"], ts)
+
+                    stats["total_detections"] += 1
+
+                    if ev.zone_id in ("cash_counter", "beauty_counter"):
+
+                        stats["billing_detections"] += 1
+
+                    if ev.is_staff:
+
+                        stats["hsv_matches"] += 1
+
+                    if ev.zone_id and ev.zone_id != "entry":
+
+                        stats["zones"].add(ev.zone_id)
+
+
+
+                is_staff_map = {}
+                for vid, stats in visitor_stats.items():
+                    active_duration = (stats["last_ts"] - stats["first_ts"]).total_seconds()
+                    ratio_active = active_duration / clip_duration_seconds if clip_duration_seconds > 0 else 0
+                    ratio_visible = stats["total_detections"] / (processed_frames or 1)
+                    ratio_billing = stats["billing_detections"] / stats["total_detections"] if stats["total_detections"] > 0 else 0
+                    ratio_hsv = stats["hsv_matches"] / stats["total_detections"] if stats["total_detections"] > 0 else 0
+
+                    # 1. Spatial Motion Validation Filter: discard static mannequins, posters, reflections, ghosts
+                    centroids = visitor_centroids.get(vid, [])
+                    if centroids:
+                        xs = [c[0] for c in centroids]
+                        ys = [c[1] for c in centroids]
+                        dx = max(xs) - min(xs)
+                        dy = max(ys) - min(ys)
+                        displacement = (dx**2 + dy**2) ** 0.5
+                    else:
+                        displacement = 0.0
+
+                    if displacement < 30.0:
+                        logger.info("Discarding static ghost/mannequin (displacement=%.1fpx): visitor=%s", displacement, vid)
+                        continue
+
+                    # 2. Outside passerby / street traffic filter:
+                    is_outside_camera = any(c in camera_id.lower() for c in ["cam1", "cam 1", "cam3", "cam 3"])
+                    if is_outside_camera and len(stats["zones"]) == 0:
+                        logger.info("Discarding outside passerby/street traffic (0 zones visited): visitor=%s", vid)
+                        continue
+
+                    # Staff classification heuristics
+                    is_staff_heuristic = False
+                    
+                    # Physical constraint: a visitor must visit at least one zone inside the store to be store staff!
+                    # (Unless it's CAM5 Exit/billing rear camera which is a dedicated zone)
+                    has_zone_presence = len(stats["zones"]) > 0 or "cam5" in camera_id.lower() or "cam 5" in camera_id.lower()
+                    
+                    if has_zone_presence:
+                        # Heuristic A: Torso uniform HSV color match ratio is high (very strong color cue)
+                        if ratio_hsv > 0.30 and stats["total_detections"] >= 5:
+                            is_staff_heuristic = True
+                            
+                        # Heuristic B: Visible throughout a large portion of the video (long-duration cashier or staff walking around)
+                        if ratio_active > 0.60 and ratio_visible > 0.15 and ratio_hsv > 0.20:
+                            is_staff_heuristic = True
+                            
+                        # Heuristic C: Stationed cashier (present at start and end of longer clip at billing)
+                        if clip_duration_seconds > 15.0:
+                            present_at_start = (stats["first_ts"] - clip_start_time).total_seconds() < max(10.0, 0.25 * clip_duration_seconds)
+                            present_at_end = (clip_end_time - stats["last_ts"]).total_seconds() < max(10.0, 0.25 * clip_duration_seconds)
+                            is_at_billing = stats["billing_detections"] > 0 or "cam5" in camera_id.lower() or "cam 5" in camera_id.lower()
+                            if present_at_start and present_at_end and ratio_active > 0.60 and ratio_hsv > 0.20 and is_at_billing:
+                                is_staff_heuristic = True
+                                
+                        # Heuristic D: Repeated appearance across zones (patrolling staff)
+                        if len(stats["zones"]) >= 5 and ratio_hsv > 0.20:
+                            is_staff_heuristic = True
+
+                    is_staff_map[vid] = is_staff_heuristic
+                    logger.info(
+                        "Track evaluation: visitor=%s active_dur=%.1fs ratio_act=%.2f ratio_vis=%.2f hsv=%.2f zones=%s -> is_staff=%s",
+                        vid, active_duration, ratio_active, ratio_visible, ratio_hsv, len(stats["zones"]), is_staff_heuristic
+                    )
+
+                for ev in buffered_events:
+                    vid = ev.visitor_id
+                    if vid not in is_staff_map:
+                        continue # Skip discarded street traffic/ghosts
+                    ev.is_staff = is_staff_map.get(vid, False)
+                    if self.writer.write_event(ev):
+                        event_count += 1
 
 
 
@@ -882,7 +1019,7 @@ class DetectionPipeline:
 
                     is_staff=is_staff,
 
-                    zone_id=zone_id or "entry",
+                    zone_id=None,
 
                     run_id=self.run_id,
 
@@ -892,7 +1029,7 @@ class DetectionPipeline:
 
             if visitor_id not in self.visitor_states:
 
-                self.visitor_states[visitor_id] = {"zone_id": None, "in_store": True}
+                self.visitor_states[visitor_id] = {"zone_id": None, "in_store": True, "is_staff": is_staff}
 
             else:
 
@@ -928,7 +1065,7 @@ class DetectionPipeline:
 
                     is_staff=is_staff,
 
-                    zone_id=zone_id,
+                    zone_id=None,
 
                     run_id=self.run_id,
 

@@ -69,16 +69,29 @@ class IngestionResponse(BaseModel):
 
 
 class MetricsResponse(BaseModel):
+
     """Store metrics response."""
+
     store_id: str
+
     window: str = "today"
+
     unique_visitors: int = 0
+
+    unique_staff: int = 0
+
     conversion_rate: float = 0.0
+
     avg_dwell_by_zone: Dict[str, float] = {}
+
     current_queue_depth: int = 0
+
     abandonment_rate: float = 0.0
+
     data_freshness: str
+
     run_id: Optional[str] = None
+
     provenance: DataProvenance = Field(default_factory=DataProvenance)
 
 

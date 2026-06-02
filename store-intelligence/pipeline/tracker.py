@@ -16,7 +16,7 @@ class ReIDTracker:
     - Cross-camera deduplication via embeddings
     """
 
-    def __init__(self, similarity_threshold: float = 0.75, buffer_window_minutes: int = 10):
+    def __init__(self, similarity_threshold: float = 0.85, buffer_window_minutes: int = 10):
         """
         Initialize Re-ID tracker.
         
@@ -36,6 +36,10 @@ class ReIDTracker:
         
         # Counter for generating visitor IDs
         self.visitor_counter = 0
+        
+        # Keep track of visitor IDs assigned at the current timestamp to enforce physical exclusion
+        self.last_timestamp = None
+        self.assigned_at_timestamp = set()
 
     def match_or_create(
         self,
@@ -56,6 +60,11 @@ class ReIDTracker:
                 visitor_id: Unique visitor identifier (e.g., "VIS_c8a2f1")
                 is_reentry: True if visitor re-entered after prior EXIT
         """
+        # Reset same-frame exclusion set if timestamp changes
+        if current_timestamp != self.last_timestamp:
+            self.assigned_at_timestamp = set()
+            self.last_timestamp = current_timestamp
+
         # If this track_id already mapped, return known visitor
         if track_id in self.track_to_visitor:
             visitor_id = self.track_to_visitor[track_id]
@@ -65,6 +74,7 @@ class ReIDTracker:
                 old_embedding, old_timestamp, was_active = self.visitor_buffer[visitor_id]
                 self.visitor_buffer[visitor_id] = (embedding, current_timestamp, True)
             
+            self.assigned_at_timestamp.add(visitor_id)
             return visitor_id, False
         
         # Clean up stale entries
@@ -76,6 +86,10 @@ class ReIDTracker:
         best_was_inactive = False
         
         for visitor_id, (stored_embedding, stored_timestamp, was_active) in self.visitor_buffer.items():
+            # Physical constraint: a single visitor cannot have multiple active tracks in the same frame
+            if visitor_id in self.assigned_at_timestamp:
+                continue
+                
             similarity = self._cosine_similarity(embedding, stored_embedding)
             
             if similarity >= self.similarity_threshold and similarity > best_similarity:
@@ -87,6 +101,7 @@ class ReIDTracker:
             # Found matching visitor - suppress reflections/duplicates if similarity is extremely high
             self.track_to_visitor[track_id] = best_visitor_id
             self.visitor_buffer[best_visitor_id] = (embedding, current_timestamp, True)
+            self.assigned_at_timestamp.add(best_visitor_id)
             
             is_reentry = best_was_inactive
             return best_visitor_id, is_reentry
@@ -95,16 +110,20 @@ class ReIDTracker:
         # If so, suppress the reflection detection completely and map to the closest parent track visitor_id
         # (This is implemented by finding the most similar active visitor even if slightly below threshold)
         for visitor_id, (stored_embedding, stored_timestamp, was_active) in self.visitor_buffer.items():
+            if visitor_id in self.assigned_at_timestamp:
+                continue
             similarity = self._cosine_similarity(embedding, stored_embedding)
             if similarity >= (self.similarity_threshold - 0.1) and was_active:
                 # Highly likely a mirror reflection or duplicate double-detection - suppress
                 self.track_to_visitor[track_id] = visitor_id
+                self.assigned_at_timestamp.add(visitor_id)
                 return visitor_id, False
         
         # No match - create new visitor
         visitor_id = self._generate_visitor_id(embedding)
         self.track_to_visitor[track_id] = visitor_id
         self.visitor_buffer[visitor_id] = (embedding, current_timestamp, True)
+        self.assigned_at_timestamp.add(visitor_id)
         
         return visitor_id, False
 

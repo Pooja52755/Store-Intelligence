@@ -66,19 +66,31 @@
 - `detect.py` - Main orchestrator, processes video frames sequentially
 - `tracker.py` - Re-ID matching using cosine similarity on 128-dim OSNet embeddings
 - `tripwire.py` - Entry/exit detection using 3-frame confirmation (avoids noise)
-- `staff_classifier.py` - HSV histogram of torso region (top 40% of bbox)
+- `staff_classifier.py` - Torso HSV color classifier + deterministic behavioral tracking
+
 - `emit.py` - Pydantic EventSchema + JSONL writer with validation
 
-**Processing Flow per Frame**:
+
+
+**Processing Flow**:
+
 1. Run YOLOv8 detection (conf=0.4, iou=0.5, ByteTrack=persist)
+
 2. For each detection box:
+
    - Extract appearance embedding via OSNet
+
    - Match to existing visitor via cosine similarity (threshold=0.75) or create new
+
    - Check tripwire for ENTRY/EXIT crossing
-   - Classify as staff (HSV histogram distance < 0.35)
+
+   - Classify torso HSV uniform (HSV histogram distance < 0.35)
+
    - Assign zone from store_layout.json
-3. Emit events: ENTRY/REENTRY, EXIT, ZONE_ENTER/EXIT, ZONE_DWELL (every 30s)
-4. Write validated JSON to JSONL file
+
+3. Generate events: ENTRY/REENTRY, EXIT, ZONE_ENTER/EXIT, ZONE_DWELL (every 30s) and buffer in memory
+
+4. At video end, evaluate deterministic track-level staff heuristics (duration span, visible ratio, start/end presence, and uniform color), update `is_staff` flags, and write validated events to JSONL file
 
 **Edge Cases**:
 - GROUP ENTRY: NMS iou=0.5 prevents box merging → 2 adjacent people → 2 ENTRY events

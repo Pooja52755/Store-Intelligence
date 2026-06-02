@@ -52,10 +52,11 @@ class StaffClassifier:
             if crop.size == 0:
                 return False
             
-            # Extract top 40% of bbox (torso region, avoids face blur)
+            # Extract chest/shirt region (25% to 65% of bounding box height, avoids black hair and pants)
             height = crop.shape[0]
-            torso_height = int(height * 0.4)
-            torso_crop = crop[:torso_height, :]
+            y_start = int(height * 0.25)
+            y_end = int(height * 0.65)
+            torso_crop = crop[y_start:y_end, :]
             
             if torso_crop.size == 0:
                 return False
@@ -73,6 +74,12 @@ class StaffClassifier:
             )
             hist = cv2.normalize(hist, hist).flatten()
             
+            # Direct check for black/dark uniform (very low saturation and brightness in torso)
+            mean_s = np.mean(hsv_crop[:, :, 1])
+            mean_v = np.mean(hsv_crop[:, :, 2])
+            if mean_v < 68.0 and mean_s < 75.0:
+                return True
+
             # Compare against staff signatures
             min_distance = float('inf')
             

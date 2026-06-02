@@ -254,18 +254,19 @@ def build_sessions_from_events(events: List[dict]) -> List[VisitorSession]:
     for s in sessions:
         total_dwell = sum(s.zone_dwell_ms.values())
         
-        # Cashier check: if they dwell at checkout for more than 40% of total video clip duration
-        # OR if they were detected on CAM5 (checkout rear view where only cashier staff are present)
+        # Cashier check: if they dwell at checkout for a large portion of their active session
+        # AND their session duration is extremely long (active for a large part of the entire run)
         checkout_dwell = sum(s.zone_dwell_ms.get(z, 0) for z in BILLING_ZONES)
-        has_cam5_presence = any(
-            ev.get("camera_id") in ("CAM5", "CAM 5")
-            for ev in sorted_events
-            if ev.get("visitor_id") == s.visitor_id
-        )
         is_cashier = False
         if run_duration_ms > 30000:  # Only check for runs longer than 30 seconds
-            if checkout_dwell > (run_duration_ms * 0.40) or has_cam5_presence:
-                is_cashier = True
+            session_duration_ms = 0
+            if s.ended_at and s.started_at:
+                session_duration_ms = int((s.ended_at - s.started_at).total_seconds() * 1000)
+            
+            # If session is active for more than 60% of the entire run, AND they spend more than 60% of their session in billing
+            if session_duration_ms > (run_duration_ms * 0.60):
+                if checkout_dwell > (session_duration_ms * 0.60):
+                    is_cashier = True
 
         if total_dwell > 900000 or len(s.zones_visited) > 8 or is_cashier:
             s.is_staff = True

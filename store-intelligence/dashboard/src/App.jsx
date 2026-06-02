@@ -314,8 +314,19 @@ function App() {
               {metrics && (
                 <div className="metrics-grid">
                   <div className="metric-card">
-                    <div className="metric-label">Unique Visitors</div>
+
+                    <div className="metric-label">Unique Customers</div>
+
                     <div className="metric-value">{metrics.unique_visitors}</div>
+
+                  </div>
+
+                  <div className="metric-card">
+
+                    <div className="metric-label">Detected Staff</div>
+
+                    <div className="metric-value">{metrics.unique_staff || 0}</div>
+
                   </div>
                   <div className="metric-card">
                     <div className="metric-label">Conversion Rate</div>

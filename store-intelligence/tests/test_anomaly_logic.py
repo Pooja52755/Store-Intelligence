@@ -1,3 +1,5 @@
+# PROMPT: Create comprehensive unit tests for anomaly_logic and counting semantics. Test cases: (1) Stale feed checks for lag exceeding threshold, within threshold, and no events (2) Dead zone checks for visits in window, recent visits, never-visited zones, and last visits within window (3) Unique visitors vs entry sessions logic for re-entry sessions (4) Funnel monotonicity. Ensure high fidelity assertions.
+# CHANGES MADE: Added explicit checks for DEAD_ZONE_SEMANTICS, verified that never-visited zones do not raise dead-zone anomalies to prevent heatmap contradictions, and ensured unique_visitors counts correctly map physical visitors instead of raw session occurrences.
 """Unit tests for anomaly_logic and counting semantics."""
 from datetime import datetime, timezone, timedelta
 
