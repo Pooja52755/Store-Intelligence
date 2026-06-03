@@ -767,14 +767,119 @@ section h2::before {
   border: 1px solid var(--border-glass);
 }
 
-@media (max-width: 1024px) {
-  .dashboard { padding: 20px; }
-  .App-header { padding: 18px 20px; }
-}
-
 @media (max-width: 768px) {
   .header-controls { flex-direction: column; align-items: stretch; width: 100%; }
   .run-selector-container { justify-content: space-between; }
   .metrics-grid { grid-template-columns: 1fr 1fr; }
   .floorplan-legend { gap: 15px; }
+}
+
+/* 8. Live CCTV Feed */
+.live-feed-section {
+  border-left: 4px solid var(--color-secondary);
+}
+
+.live-feed-card {
+  position: relative;
+  width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--border-glass-active);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+}
+
+.live-feed-image {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.live-feed-overlay-text {
+  position: absolute;
+  top: 15px;
+  left: 15px;
+  background: rgba(239, 68, 68, 0.85);
+  color: white;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  animation: blinker 1.5s linear infinite;
+}
+
+@keyframes blinker {
+  50% { opacity: 0.2; }
+}
+
+/* 9. Journeys Section */
+.journeys-section {
+  border-left: 4px solid #f59e0b;
+}
+
+.journeys-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.journey-card {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-glass);
+  padding: 16px 20px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  transition: all 0.3s;
+}
+
+.journey-card:hover {
+  border-color: rgba(245, 158, 11, 0.3);
+  transform: translateX(4px);
+}
+
+.journey-freq-badge {
+  background: rgba(245, 158, 11, 0.12);
+  color: #fbbf24;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  min-width: 80px;
+  text-align: center;
+}
+
+.journey-flow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.journey-step {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-glass);
+}
+
+.journey-step.step-entry {
+  background: rgba(52, 211, 153, 0.1);
+  color: #34d399;
+  border-color: rgba(52, 211, 153, 0.2);
+}
+
+.journey-step.step-exit {
+  background: rgba(248, 113, 113, 0.1);
+  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.2);
+}
+
+.journey-arrow {
+  color: var(--color-text-muted);
+  font-size: 14px;
 }

@@ -450,3 +450,55 @@ def load_layout_zone_ids(store_id: str) -> List[str]:
         return list(data.get("zones", {}).keys())
     except Exception:
         return []
+
+
+def compute_journey_paths(events: List[dict], limit: int = 10) -> List[Dict[str, Any]]:
+    """Compute common visitor journey paths from events."""
+    from collections import defaultdict
+    
+    # Group events by visitor_id
+    visitor_events = defaultdict(list)
+    for ev in events:
+        if ev.get("is_staff"):
+            continue
+        visitor_id = ev["visitor_id"]
+        visitor_events[visitor_id].append(ev)
+        
+    path_counts = defaultdict(int)
+    
+    for visitor_id, evs in visitor_events.items():
+        sorted_evs = sorted(evs, key=lambda e: _parse_ts(e["timestamp"]))
+        
+        path = []
+        has_entry = False
+        has_exit = False
+        
+        for ev in sorted_evs:
+            etype = ev["event_type"]
+            zone_id = ev.get("zone_id")
+            
+            if etype in ("ENTRY", "REENTRY"):
+                has_entry = True
+            elif etype == "EXIT":
+                has_exit = True
+            elif etype == "ZONE_ENTER" and zone_id:
+                zone_name = zone_id.replace("_", " ").title()
+                if not path or path[-1] != zone_name:
+                    path.append(zone_name)
+                    
+        full_path = []
+        if has_entry:
+            full_path.append("Entry")
+        full_path.extend(path)
+        if has_exit:
+            full_path.append("Exit")
+            
+        if full_path:
+            path_counts[tuple(full_path)] += 1
+            
+    sorted_paths = sorted(path_counts.items(), key=lambda x: x[1], reverse=True)
+    
+    return [
+        {"path": list(p), "frequency": freq}
+        for p, freq in sorted_paths[:limit]
+    ]

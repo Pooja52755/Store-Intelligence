@@ -24,10 +24,30 @@ async def client():
 async def setup_test_db():
     """Setup test database."""
     await db_manager.init()
+    
+    session = await db_manager.get_session()
+    try:
+        from sqlalchemy import text
+        await session.execute(text("DELETE FROM events"))
+        await session.execute(text("DELETE FROM sessions"))
+        await session.commit()
+    except Exception:
+        await session.rollback()
+    finally:
+        await session.close()
+        
     yield
-    # Cleanup
-    async with db_manager.engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+    
+    session = await db_manager.get_session()
+    try:
+        from sqlalchemy import text
+        await session.execute(text("DELETE FROM events"))
+        await session.execute(text("DELETE FROM sessions"))
+        await session.commit()
+    except Exception:
+        await session.rollback()
+    finally:
+        await session.close()
 
 
 async def create_test_event(

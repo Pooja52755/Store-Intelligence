@@ -66,6 +66,9 @@ class AnomaliesService:
             if not stale:
                 dead = await self._check_dead_zones(store_id, run_id=run_id)
                 anomalies.extend(dead)
+
+            loops = await self._check_looping_pathways(store_id, run_id=run_id)
+            anomalies.extend(loops)
         except Exception as e:
             logger.error("Error detecting anomalies: %s", e)
 
@@ -339,6 +342,58 @@ class AnomaliesService:
         events = await fetch_store_events(session, store_id, since=None if run_id else start, run_id=run_id)
         await session.close()
         return events
+
+    async def _check_looping_pathways(self, store_id: str, run_id: Optional[str] = None) -> List[Anomaly]:
+        results = []
+        try:
+            events = await self._today_events(store_id, run_id=run_id)
+            if not events:
+                return results
+                
+            from collections import defaultdict
+            visitor_paths = defaultdict(list)
+            for ev in events:
+                if ev.get("is_staff"):
+                    continue
+                visitor_id = ev["visitor_id"]
+                visitor_paths[visitor_id].append(ev)
+                
+            now = datetime.now(timezone.utc)
+            
+            for visitor_id, evs in visitor_paths.items():
+                sorted_evs = sorted(evs, key=lambda e: _parse(e["timestamp"]))
+                
+                zone_sequence = []
+                for ev in sorted_evs:
+                    if ev["event_type"] == "ZONE_ENTER" and ev.get("zone_id"):
+                        zone = ev["zone_id"]
+                        if not zone_sequence or zone_sequence[-1] != zone:
+                            zone_sequence.append(zone)
+                            
+                zone_counts = defaultdict(int)
+                for zone in zone_sequence:
+                    zone_counts[zone] += 1
+                    
+                for zone, count in zone_counts.items():
+                    if count >= 3 and zone in ("skincare", "moisturiser", "cash_counter", "beauty_counter", "face_wash", "makeup"):
+                        results.append(
+                            Anomaly(
+                                type="SUSPICIOUS_LOOP",
+                                severity="WARN",
+                                detected_at=now.isoformat().replace("+00:00", "Z"),
+                                details={
+                                    "visitor_id": visitor_id,
+                                    "zone_id": zone,
+                                    "visit_count": count,
+                                    "pathway": zone_sequence
+                                },
+                                suggested_action=f"Assign staff to assist visitor '{visitor_id}' at zone '{zone}'",
+                            )
+                        )
+                        break
+        except Exception as e:
+            logger.warning("Looping pathway check failed: %s", e)
+        return results
 
 
 def _parse(ts):

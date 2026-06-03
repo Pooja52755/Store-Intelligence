@@ -233,9 +233,13 @@ class DetectionPipeline:
 
 
         model_file = Path(MODEL_PATH)
+        if not model_file.exists():
+            # Fallback to script dir
+            fallback_path = Path(__file__).resolve().parent / model_file.name
+            if fallback_path.exists():
+                model_file = fallback_path
 
         logger.info("=== YOLO startup ===")
-
         logger.info("model path: %s (exists=%s)", model_file.resolve(), model_file.exists())
 
 
@@ -552,7 +556,7 @@ class DetectionPipeline:
 
 
                 person_count = 0
-
+                annotations = []
                 for result in results:
 
                     if result.boxes is None or len(result.boxes) == 0:
@@ -634,6 +638,12 @@ class DetectionPipeline:
                                 frame, (x1, y1, x2, y2)
 
                             )
+
+                            annotations.append({
+                                "bbox": (int(x1), int(y1), int(x2), int(y2)),
+                                "is_staff": is_staff,
+                                "visitor_id": visitor_id
+                            })
 
                             zone_id = self._get_zone(centroid, camera_id)
 
@@ -740,8 +750,12 @@ class DetectionPipeline:
 
 
                             for event in events:
-
                                 buffered_events.append(event)
+                                try:
+                                    event_dict = event.model_dump(exclude_none=False)
+                                    print(f"EVENT_STREAM:{json.dumps(event_dict)}", flush=True)
+                                except Exception as err:
+                                    pass
 
 
 
@@ -751,7 +765,71 @@ class DetectionPipeline:
 
                             continue
 
+                # Draw annotations and save live feed frame
+                try:
+                    annotated_frame = frame.copy()
+                    # Draw tripwire line
+                    cv2.line(
+                        annotated_frame,
+                        (scaled_line["x1"], scaled_line["y1"]),
+                        (scaled_line["x2"], scaled_line["y2"]),
+                        (0, 0, 255),  # Red line
+                        3
+                    )
+                    cv2.putText(
+                        annotated_frame,
+                        "TRIPWIRE",
+                        (scaled_line["x1"] + 10, scaled_line["y1"] - 10),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.7,
+                        (0, 0, 255),
+                        2
+                    )
 
+                    # Draw person boxes
+                    for ann in annotations:
+                        ax1, ay1, ax2, ay2 = ann["bbox"]
+                        a_is_staff = ann["is_staff"]
+                        a_vid = ann["visitor_id"]
+
+                        if a_is_staff:
+                            label = f"Staff: {a_vid}"
+                            color = (255, 0, 128)  # Purple
+                        else:
+                            label = f"Visitor: {a_vid}"
+                            color = (0, 255, 0)  # Green
+
+                        # Draw box
+                        cv2.rectangle(annotated_frame, (ax1, ay1), (ax2, ay2), color, 2)
+
+                        # Label background
+                        (w, h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)
+                        cv2.rectangle(
+                            annotated_frame,
+                            (ax1, max(0, ay1 - 20)),
+                            (ax1 + w, ay1),
+                            color,
+                            -1
+                        )
+                        # Write label
+                        cv2.putText(
+                            annotated_frame,
+                            label,
+                            (ax1, max(5, ay1 - 5)),
+                            cv2.FONT_HERSHEY_SIMPLEX,
+                            0.5,
+                            (255, 255, 255),
+                            2
+                        )
+
+                    # Save image file in run directory if run_id is active
+                    if self.run_id:
+                        live_feed_dir = Path("uploads") / self.store_id / self.run_id
+                        live_feed_dir.mkdir(parents=True, exist_ok=True)
+                        live_feed_path = live_feed_dir / "live_feed.jpg"
+                        cv2.imwrite(str(live_feed_path), annotated_frame)
+                except Exception as img_err:
+                    pass
 
                 if processed_frames % detection_log_interval == 0:
 

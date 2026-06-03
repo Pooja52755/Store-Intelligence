@@ -520,6 +520,69 @@ async def upload_video(
 
 
 
+from fastapi.responses import FileResponse, Response, StreamingResponse
+
+@app.get("/stores/{store_id}/runs/{run_id}/live-frame")
+async def get_live_frame(store_id: str, run_id: str):
+    """
+    GET /stores/{store_id}/runs/{run_id}/live-frame
+    
+    Serve the most recent live YOLO bounding box frame from the pipeline.
+    """
+    live_feed_path = Path("/app/uploads") / store_id / run_id / "live_feed.jpg"
+    if not live_feed_path.exists():
+        live_feed_path = Path("uploads") / store_id / run_id / "live_feed.jpg"
+        
+    if live_feed_path.exists():
+        return FileResponse(
+            str(live_feed_path),
+            media_type="image/jpeg",
+            headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"}
+        )
+        
+    # Transparent 1x1 pixel GIF placeholder
+    transparent_gif = b'GIF89a\x01\x00\x01\x00\x80\x00\x00\x00\x00\x00\xff\xff\xff\x21\xf9\x04\x01\x00\x00\x00\x00\x2c\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00\x3b'
+    return Response(content=transparent_gif, media_type="image/gif")
+
+
+@app.get("/stores/{store_id}/runs/{run_id}/live-stream")
+async def get_live_stream(store_id: str, run_id: str):
+    """
+    GET /stores/{store_id}/runs/{run_id}/live-stream
+    
+    Serve a continuous multipart/x-mixed-replace MJPEG video stream of live frames.
+    """
+    async def event_generator():
+        live_feed_path = Path("/app/uploads") / store_id / run_id / "live_feed.jpg"
+        if not live_feed_path.exists():
+            live_feed_path = Path("uploads") / store_id / run_id / "live_feed.jpg"
+            
+        last_mtime = 0
+        transparent_gif = b'GIF89a\x01\x00\x01\x00\x80\x00\x00\x00\x00\x00\xff\xff\xff\x21\xf9\x04\x01\x00\x00\x00\x00\x2c\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00\x3b'
+        
+        while True:
+            if live_feed_path.exists():
+                try:
+                    mtime = os.path.getmtime(live_feed_path)
+                    if mtime > last_mtime:
+                        last_mtime = mtime
+                        with open(live_feed_path, 'rb') as f:
+                            frame_bytes = f.read()
+                        yield (b'--frame\r\n'
+                               b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+                except Exception:
+                    pass
+            else:
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/gif\r\n\r\n' + transparent_gif + b'\r\n')
+            await asyncio.sleep(0.1) # Check 10 times per second for changes
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="multipart/x-mixed-replace; boundary=frame"
+    )
+
+
 async def trigger_pipeline_processing(store_id: str, run_id: str, video_path: str, camera_id: str):
 
     """
@@ -583,9 +646,7 @@ async def trigger_pipeline_processing(store_id: str, run_id: str, video_path: st
         
 
         cmd = [
-
-            "python", "pipeline/detect.py",
-
+            "python", "-u", "pipeline/detect.py",
             "--clips-dir", clips_dir,
 
             "--layout", "/app/store_layout.json",
@@ -626,13 +687,81 @@ async def trigger_pipeline_processing(store_id: str, run_id: str, video_path: st
 
         
 
-        stdout, stderr = await process.communicate()
+        # Stream stdout/stderr in real-time to support simulated live-feed updates
+        stdout_lines = []
+        stderr_lines = []
 
+        async def read_stdout(stream):
+            while True:
+                line = await stream.readline()
+                if not line:
+                    break
+                line_text = line.decode(errors='ignore').strip()
+                stdout_lines.append(line_text)
+                
+                # Check for live event stream prefix
+                if line_text.startswith("EVENT_STREAM:"):
+                    try:
+                        event_json = line_text[len("EVENT_STREAM:"):].strip()
+                        import json
+                        from app.models import EventSchema
+                        event_data = json.loads(event_json)
+                        event_data['run_id'] = run_id
+                        
+                        # Immediately ingest event
+                        event_schema = EventSchema(**event_data)
+                        await ingestion_service.ingest_events([event_schema])
+                    except Exception as err:
+                        logger.warning("Failed to ingest streamed event: %s", err)
+
+        async def read_stderr(stream):
+            while True:
+                line = await stream.readline()
+                if not line:
+                    break
+                line_text = line.decode(errors='ignore').strip()
+                stderr_lines.append(line_text)
+
+        stop_polling = False
+        async def poll_and_broadcast_frames():
+            path1 = Path("/app/uploads") / store_id / run_id / "live_feed.jpg"
+            path2 = Path("uploads") / store_id / run_id / "live_feed.jpg"
+            last_mtime = 0
+            import base64
+            while not stop_polling:
+                live_feed_path = path1 if path1.exists() else path2
+                if live_feed_path.exists():
+                    try:
+                        mtime = os.path.getmtime(live_feed_path)
+                        if mtime > last_mtime:
+                            last_mtime = mtime
+                            with open(live_feed_path, 'rb') as f:
+                                frame_bytes = f.read()
+                            base64_frame = base64.b64encode(frame_bytes).decode('utf-8')
+                            frame_data_url = f"data:image/jpeg;base64,{base64_frame}"
+                            await broadcast_update(store_id, {
+                                "type": "frame",
+                                "run_id": run_id,
+                                "frame": frame_data_url
+                            })
+                    except Exception:
+                        pass
+                await asyncio.sleep(0.1) # 10 FPS
+
+        polling_task = asyncio.create_task(poll_and_broadcast_frames())
+
+        await asyncio.gather(
+            read_stdout(process.stdout),
+            read_stderr(process.stderr)
+        )
         
+        await process.wait()
+        
+        stop_polling = True
+        polling_task.cancel()
 
-        stdout_text = stdout.decode(errors='ignore')
-
-        stderr_text = stderr.decode(errors='ignore')
+        stdout_text = "\n".join(stdout_lines)
+        stderr_text = "\n".join(stderr_lines)
 
         
 
@@ -743,19 +872,26 @@ async def ingest_run_events(store_id: str, run_id: str):
     """
 
     try:
-
         events_file = run_manager.get_events_file(store_id, run_id)
 
+        # Clear prior live-streamed draft events to avoid duplicates and finalize data
+        from sqlalchemy import text
+        db_sess = await db_manager.get_session()
+        try:
+            await db_sess.execute(text("DELETE FROM events WHERE run_id = :run_id"), {"run_id": run_id})
+            await db_sess.commit()
+            logger.info("Cleared live-streamed draft events for run_id=%s", run_id)
+        except Exception as e:
+            await db_sess.rollback()
+            logger.warning("Failed to clear live-streamed draft events: %s", e)
+        finally:
+            await db_sess.close()
+
         if not events_file.exists():
-
             logger.warning("No events file found for run: run_id=%s", run_id)
-
             return
 
-        
-
         # Read events from JSONL
-
         events = []
 
         with open(events_file, 'r') as f:
@@ -1209,29 +1345,27 @@ async def get_funnel(store_id: str, run_id: Optional[str] = None):
 
 
 @app.get("/stores/{store_id}/journeys")
-
-async def get_journeys(store_id: str, limit: int = 10):
-
+async def get_journeys(store_id: str, limit: int = 10, run_id: Optional[str] = None):
     """
-
     GET /stores/{store_id}/journeys
 
-
-
-    Top visitor journey paths from Neo4j knowledge graph.
-
+    Top visitor journey paths from PostgreSQL events database.
     """
-
     try:
-
-        paths = await graph_manager.get_visitor_journey_paths(store_id, limit=limit)
-
-        return {"store_id": store_id, "journeys": paths}
-
+        if run_id is None:
+            run_id = run_manager.get_latest_run(store_id)
+            
+        session = await db_manager.get_session()
+        try:
+            from app.session_analytics import fetch_store_events, compute_journey_paths
+            events = await fetch_store_events(session, store_id, since=None, run_id=run_id)
+            paths = compute_journey_paths(events, limit=limit)
+        finally:
+            await session.close()
+            
+        return {"store_id": store_id, "journeys": paths, "run_id": run_id}
     except Exception as e:
-
         log.error("journeys_error", store_id=store_id, error=str(e))
-
         raise HTTPException(status_code=503, detail={"error": str(e)})
 
 
