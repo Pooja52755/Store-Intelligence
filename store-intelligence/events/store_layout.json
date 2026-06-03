@@ -1,0 +1,741 @@
+{
+  "store_name": "Brigade Road, Bangalore",
+  "store_id": "STORE_BLR_002",
+  "layout_version": "1.2",
+  "source": {
+    "type": "xlsx_floor_plan",
+    "file": "C:\\Users\\Pooja\\Downloads\\Brigade Road - Store layoutc5f5d56.xlsx",
+    "store_width_mm": 9041,
+    "store_height_mm": 5040,
+    "notes": "Zones mapped from annotated mm dimensions on embedded floor-plan images.",
+    "extracted_images": [
+      "events\\layout_assets\\floor_plan_1.png",
+      "events\\layout_assets\\floor_plan_2.png"
+    ]
+  },
+  "video_resolution": {
+    "width": 1920,
+    "height": 1080
+  },
+  "zones": {
+    "entry": {
+      "name": "Entry / glass door",
+      "bounds": [
+        0,
+        0,
+        551,
+        1080
+      ],
+      "polygon": [
+        [
+          0,
+          0
+        ],
+        [
+          551,
+          0
+        ],
+        [
+          551,
+          1080
+        ],
+        [
+          0,
+          1080
+        ]
+      ]
+    },
+    "backlit": {
+      "name": "Backlit display (entry left)",
+      "bounds": [
+        0,
+        900,
+        149,
+        1080
+      ],
+      "polygon": [
+        [
+          0,
+          900
+        ],
+        [
+          149,
+          900
+        ],
+        [
+          149,
+          1080
+        ],
+        [
+          0,
+          1080
+        ]
+      ]
+    },
+    "nail_fragrance": {
+      "name": "Nail & fragrance gondola",
+      "bounds": [
+        551,
+        390,
+        657,
+        583
+      ],
+      "polygon": [
+        [
+          551,
+          390
+        ],
+        [
+          657,
+          390
+        ],
+        [
+          657,
+          583
+        ],
+        [
+          551,
+          583
+        ]
+      ]
+    },
+    "makeup_unit_center": {
+      "name": "Makeup stations (centre)",
+      "bounds": [
+        943,
+        390,
+        1134,
+        583
+      ],
+      "polygon": [
+        [
+          943,
+          390
+        ],
+        [
+          1134,
+          390
+        ],
+        [
+          1134,
+          583
+        ],
+        [
+          943,
+          583
+        ]
+      ]
+    },
+    "central_aisle": {
+      "name": "FOH central aisle",
+      "bounds": [
+        149,
+        193,
+        1559,
+        821
+      ],
+      "polygon": [
+        [
+          149,
+          193
+        ],
+        [
+          1559,
+          193
+        ],
+        [
+          1559,
+          821
+        ],
+        [
+          149,
+          821
+        ]
+      ]
+    },
+    "eb_zone": {
+      "name": "EB / Salm",
+      "bounds": [
+        551,
+        0,
+        722,
+        152
+      ],
+      "polygon": [
+        [
+          551,
+          0
+        ],
+        [
+          722,
+          0
+        ],
+        [
+          722,
+          152
+        ],
+        [
+          551,
+          152
+        ]
+      ]
+    },
+    "tfs_zone": {
+      "name": "The Face Shop",
+      "bounds": [
+        722,
+        0,
+        892,
+        152
+      ],
+      "polygon": [
+        [
+          722,
+          0
+        ],
+        [
+          892,
+          0
+        ],
+        [
+          892,
+          152
+        ],
+        [
+          722,
+          152
+        ]
+      ]
+    },
+    "good_vibes_zone": {
+      "name": "Good Vibes",
+      "bounds": [
+        892,
+        0,
+        1062,
+        152
+      ],
+      "polygon": [
+        [
+          892,
+          0
+        ],
+        [
+          1062,
+          0
+        ],
+        [
+          1062,
+          152
+        ],
+        [
+          892,
+          152
+        ]
+      ]
+    },
+    "dermdoc_zone": {
+      "name": "DermDoc",
+      "bounds": [
+        1062,
+        0,
+        1232,
+        152
+      ],
+      "polygon": [
+        [
+          1062,
+          0
+        ],
+        [
+          1232,
+          0
+        ],
+        [
+          1232,
+          152
+        ],
+        [
+          1062,
+          152
+        ]
+      ]
+    },
+    "minimalist_zone": {
+      "name": "Minimalist",
+      "bounds": [
+        1232,
+        0,
+        1402,
+        152
+      ],
+      "polygon": [
+        [
+          1232,
+          0
+        ],
+        [
+          1402,
+          0
+        ],
+        [
+          1402,
+          152
+        ],
+        [
+          1232,
+          152
+        ]
+      ]
+    },
+    "aqualogica_zone": {
+      "name": "Aqualogica",
+      "bounds": [
+        1402,
+        0,
+        1572,
+        152
+      ],
+      "polygon": [
+        [
+          1402,
+          0
+        ],
+        [
+          1572,
+          0
+        ],
+        [
+          1572,
+          152
+        ],
+        [
+          1402,
+          152
+        ]
+      ]
+    },
+    "pilgrim_zone": {
+      "name": "Pilgrim / Foxtale",
+      "bounds": [
+        1572,
+        0,
+        1741,
+        152
+      ],
+      "polygon": [
+        [
+          1572,
+          0
+        ],
+        [
+          1741,
+          0
+        ],
+        [
+          1741,
+          152
+        ],
+        [
+          1572,
+          152
+        ]
+      ]
+    },
+    "dk_zone": {
+      "name": "D&K / JC",
+      "bounds": [
+        1741,
+        0,
+        1920,
+        152
+      ],
+      "polygon": [
+        [
+          1741,
+          0
+        ],
+        [
+          1920,
+          0
+        ],
+        [
+          1920,
+          152
+        ],
+        [
+          1741,
+          152
+        ]
+      ]
+    },
+    "premium_skincare_zone": {
+      "name": "Premium skincare (top wall)",
+      "bounds": [
+        1062,
+        0,
+        1572,
+        152
+      ],
+      "polygon": [
+        [
+          1062,
+          0
+        ],
+        [
+          1572,
+          0
+        ],
+        [
+          1572,
+          152
+        ],
+        [
+          1062,
+          152
+        ]
+      ]
+    },
+    "specialty_skincare": {
+      "name": "Specialty skincare (top wall)",
+      "bounds": [
+        892,
+        0,
+        1232,
+        152
+      ],
+      "polygon": [
+        [
+          892,
+          0
+        ],
+        [
+          1232,
+          0
+        ],
+        [
+          1232,
+          152
+        ],
+        [
+          892,
+          152
+        ]
+      ]
+    },
+    "maybelline_zone": {
+      "name": "Maybelline",
+      "bounds": [
+        551,
+        821,
+        703,
+        1080
+      ],
+      "polygon": [
+        [
+          551,
+          821
+        ],
+        [
+          703,
+          821
+        ],
+        [
+          703,
+          1080
+        ],
+        [
+          551,
+          1080
+        ]
+      ]
+    },
+    "faces_zone": {
+      "name": "Faces Canada",
+      "bounds": [
+        703,
+        821,
+        856,
+        1080
+      ],
+      "polygon": [
+        [
+          703,
+          821
+        ],
+        [
+          856,
+          821
+        ],
+        [
+          856,
+          1080
+        ],
+        [
+          703,
+          1080
+        ]
+      ]
+    },
+    "lakme_zone": {
+      "name": "Lakme",
+      "bounds": [
+        856,
+        821,
+        1008,
+        1080
+      ],
+      "polygon": [
+        [
+          856,
+          821
+        ],
+        [
+          1008,
+          821
+        ],
+        [
+          1008,
+          1080
+        ],
+        [
+          856,
+          1080
+        ]
+      ]
+    },
+    "mars_nybae_zone": {
+      "name": "Mars + Ny Bae",
+      "bounds": [
+        1008,
+        821,
+        1161,
+        1080
+      ],
+      "polygon": [
+        [
+          1008,
+          821
+        ],
+        [
+          1161,
+          821
+        ],
+        [
+          1161,
+          1080
+        ],
+        [
+          1008,
+          1080
+        ]
+      ]
+    },
+    "mens_care_zone": {
+      "name": "Mens Care",
+      "bounds": [
+        1161,
+        821,
+        1313,
+        1080
+      ],
+      "polygon": [
+        [
+          1161,
+          821
+        ],
+        [
+          1313,
+          821
+        ],
+        [
+          1313,
+          1080
+        ],
+        [
+          1161,
+          1080
+        ]
+      ]
+    },
+    "alps_loreal_zone": {
+      "name": "Alps / L'Oreal",
+      "bounds": [
+        1313,
+        821,
+        1466,
+        1080
+      ],
+      "polygon": [
+        [
+          1313,
+          821
+        ],
+        [
+          1466,
+          821
+        ],
+        [
+          1466,
+          1080
+        ],
+        [
+          1313,
+          1080
+        ]
+      ]
+    },
+    "beauty_counter": {
+      "name": "Beauty counter",
+      "bounds": [
+        1466,
+        821,
+        1618,
+        1080
+      ],
+      "polygon": [
+        [
+          1466,
+          821
+        ],
+        [
+          1618,
+          821
+        ],
+        [
+          1618,
+          1080
+        ],
+        [
+          1466,
+          1080
+        ]
+      ]
+    },
+    "cash_counter": {
+      "name": "Cash counter + billing",
+      "bounds": [
+        1559,
+        152,
+        1920,
+        821
+      ],
+      "polygon": [
+        [
+          1559,
+          152
+        ],
+        [
+          1920,
+          152
+        ],
+        [
+          1920,
+          821
+        ],
+        [
+          1559,
+          821
+        ]
+      ]
+    },
+    "access": {
+      "name": "Staff access (rear)",
+      "bounds": [
+        1618,
+        821,
+        1920,
+        1080
+      ],
+      "polygon": [
+        [
+          1618,
+          821
+        ],
+        [
+          1920,
+          821
+        ],
+        [
+          1920,
+          1080
+        ],
+        [
+          1618,
+          1080
+        ]
+      ]
+    }
+  },
+  "tripwire_line": {
+    "x1": 551,
+    "y1": 0,
+    "x2": 551,
+    "y2": 1080
+  },
+  "cameras": [
+    {
+      "id": "CAM1",
+      "name": "Entry Camera",
+      "file_pattern": "CAM 1",
+      "tripwire_line": {
+        "x1": 127,
+        "y1": 0,
+        "x2": 127,
+        "y2": 1080
+      },
+      "entry_side": "negative",
+      "fixed_zone": "entry"
+    },
+    {
+      "id": "CAM2",
+      "name": "Floor A (FOH wide)",
+      "file_pattern": "CAM 2",
+      "tripwire_line": {
+        "x1": 0,
+        "y1": 557,
+        "x2": 1920,
+        "y2": 557
+      },
+      "entry_side": "negative"
+    },
+    {
+      "id": "CAM3",
+      "name": "Floor B (aisle)",
+      "file_pattern": "CAM 3",
+      "tripwire_line": {
+        "x1": 0,
+        "y1": 579,
+        "x2": 1920,
+        "y2": 579
+      },
+      "entry_side": "negative",
+      "is_outside": true
+    },
+    {
+      "id": "CAM4",
+      "name": "Floor C (shelves)",
+      "file_pattern": "CAM 4",
+      "tripwire_line": {
+        "x1": 956,
+        "y1": 0,
+        "x2": 956,
+        "y2": 1080
+      },
+      "entry_side": "negative"
+    },
+    {
+      "id": "CAM5",
+      "name": "Exit / billing rear",
+      "file_pattern": "CAM 5",
+      "tripwire_line": {
+        "x1": 1559,
+        "y1": 0,
+        "x2": 1559,
+        "y2": 1080
+      },
+      "entry_side": "positive",
+      "fixed_zone": "cash_counter"
+    }
+  ]
+}

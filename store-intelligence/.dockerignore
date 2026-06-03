@@ -1,0 +1,34 @@
+# Ignore local environment files and git
+.git
+.venv
+venv
+ENV
+.env
+.env.local
+
+# Ignore Python cache and test cache
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Ignore large media assets
+pipeline/input_clips/
+uploads/
+events/STORE_BLR_002/
+events/STORE_BLR_005/
+events/1/
+events/2/
+events/*.jsonl
+
+# Ignore IDE configs
+.vscode/
+.idea/
+
+# Ignore node_modules in dashboard
+dashboard/node_modules/
+dashboard/build/
+dashboard/.env

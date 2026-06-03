@@ -50,7 +50,7 @@ npm-debug.log
 yarn-error.log
 
 # Docker
-.dockerignore
+# .dockerignore
 
 # OS
 .DS_Store
@@ -61,7 +61,9 @@ pgdata/
 neo4jdata/
 
 # Events
-events/
+events/*
+!events/store_layout.json
+!events/pos_transactions.csv
 *.jsonl
 
 # Video files (heavy)
