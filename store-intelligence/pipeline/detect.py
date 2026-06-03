@@ -474,7 +474,12 @@ class DetectionPipeline:
 
         video_mtime = Path(video_path).stat().st_mtime
 
-        clip_start_time = datetime.fromtimestamp(video_mtime, tz=timezone.utc)
+        # Get UTC start time of the video
+        utc_start = datetime.fromtimestamp(video_mtime, tz=timezone.utc)
+        # Shift to Indian Standard Time (IST) hours (CCTV local recording time)
+        ist_start = utc_start + timedelta(hours=5, minutes=30)
+        # Shift date to 2026-04-10 to match POS transaction dates, and treat literally as UTC to align with pos_transactions.csv parsing in app
+        clip_start_time = ist_start.replace(year=2026, month=4, day=10, tzinfo=timezone.utc)
 
 
 

@@ -309,6 +309,7 @@ def build_sessions_from_events(events: List[dict]) -> List[VisitorSession]:
             
             if best_session:
                 best_session.converted = True
+                best_session.billing_queue_joined = True
 
     return sessions
 
