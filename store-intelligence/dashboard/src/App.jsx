@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './App.css';
 import Heatmap from './Heatmap';
 
@@ -15,6 +15,11 @@ function App() {
   const [heatmapData, setHeatmapData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [connected, setConnected] = useState(false);
+
+  const selectedRunIdRef = useRef(selectedRunId);
+  useEffect(() => {
+    selectedRunIdRef.current = selectedRunId;
+  }, [selectedRunId]);
 
   // Video Upload States
   const [uploadFile, setUploadFile] = useState(null);
@@ -77,7 +82,7 @@ function App() {
         const data = await response.json();
         setRuns(data.runs || []);
         // Automatically default to the latest run if none selected
-        if (!selectedRunId && data.runs && data.runs.length > 0) {
+        if (!selectedRunIdRef.current && data.runs && data.runs.length > 0) {
           // Find first run that is COMPLETED or has events, or just first in list
           const firstCompleted = data.runs.find(r => r.status === 'COMPLETED' || r.total_events > 0);
           if (firstCompleted) {
@@ -99,11 +104,12 @@ function App() {
   }, [storeId]);
 
   // Fetch metrics, heatmap, funnel, anomalies based on selectedRunId
-  const fetchDashboardData = async () => {
-    if (!selectedRunId) return;
+  const fetchDashboardData = async (runId = null) => {
+    const activeRunId = runId || selectedRunId;
+    if (!activeRunId) return;
     
     try {
-      const queryParams = `?run_id=${selectedRunId}`;
+      const queryParams = `?run_id=${activeRunId}`;
       
       // Fetch metrics
       const mRes = await fetch(`${apiBase}/stores/${storeId}/metrics${queryParams}`);
@@ -153,8 +159,9 @@ function App() {
           
           if (run.status === 'COMPLETED' || run.status === 'FAILED') {
             setProcessingRunId(null);
-            fetchRuns();
+            await fetchRuns();
             setSelectedRunId(run.run_id);
+            fetchDashboardData(run.run_id);
           }
         }
       } catch (error) {

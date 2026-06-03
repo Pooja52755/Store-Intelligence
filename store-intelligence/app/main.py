@@ -690,6 +690,12 @@ async def trigger_pipeline_processing(store_id: str, run_id: str, video_path: st
 
             
 
+            # Ingest events into database first
+
+            await ingest_run_events(store_id, run_id)
+
+
+
             run_manager.update_run_metadata(store_id, run_id, {
 
                 "status": "COMPLETED",
@@ -701,12 +707,6 @@ async def trigger_pipeline_processing(store_id: str, run_id: str, video_path: st
             })
 
             
-
-            # Ingest events into database
-
-            await ingest_run_events(store_id, run_id)
-
-    
 
     except Exception as e:
 
